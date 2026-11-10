@@ -1,0 +1,26 @@
+# 의존성·빌드
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+coverage/
+playwright-report/
+test-results/
+
+# 비밀값 (값 없는 예시만 저장소에)
+.env
+.env.*
+!.env.example
+secrets/
+
+# 데이터 (학생 글이 들어갈 수 있어 절대 올리지 않음)
+*.sqlite
+*.sqlite-*
+*.db
+
+# 로컬 작업 폴더 (개발 DB, 시안 그림, 진단 기록 원본)
+.local/
+
+# 기타
+.DS_Store
+*.log
