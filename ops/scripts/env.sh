@@ -69,10 +69,13 @@ if [ -z "${WE_RESOURCE_GUARD:-}" ]; then
   fi
 fi
 
+# PATH를 고정하기 전에 호출한 쪽의 node를 기억해 둔다. 맥미니에는 node@24가 있어 쓰이지 않고,
+# 홈브루가 없는 GitHub 시험 러너(운영 규칙 시험)에서만 쓰인다.
+we_caller_node="$(command -v node 2>/dev/null || true)"
 export PATH="/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 NODE_BIN="/opt/homebrew/opt/node@24/bin/node"
 if [ ! -x "$NODE_BIN" ]; then
-  NODE_BIN="$(command -v node 2>/dev/null || echo /opt/homebrew/bin/node)"
+  NODE_BIN="$(command -v node 2>/dev/null || echo "${we_caller_node:-/opt/homebrew/bin/node}")"
 fi
 
 umask 077
