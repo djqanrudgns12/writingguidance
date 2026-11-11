@@ -1,0 +1,27 @@
+# 쌤유 글방 맥미니 전용 Cloudflare 터널 설정 틀 — 외부 요청을 127.0.0.1:4460으로만 넘기고 /internal/*은 차단한다.
+# 실제 파일 위치: /Users/wesvc/writeessay-server/cloudflared/config.yml (권한 600, tunnel-create.sh가 생성)
+# 자격 증명(/Users/wesvc/writeessay-server/cloudflared/<TUNNEL_ID>.json)은 절대 저장소에 넣지 않는다.
+#
+# 경로 구조(PLAN §2.1, §15.2):
+#   학생·교사 → CloudFront 서울(write.ssamuniverse.com) → origin-write.ssamuniverse.com(Cloudflare WAF 원본 잠금)
+#             → 이 터널(writeessay, 메트릭 127.0.0.1:20242) → 맥미니 127.0.0.1:4460
+# 안전장치: 쌤유니버스(4390)·rollingthunder(3000·8000·20241) 포트·터널과는 완전히 분리한다.
+# 문법 확인: cloudflared tunnel --config ops/cloudflared/config.template.yml ingress validate
+
+tunnel: __TUNNEL_ID__
+credentials-file: /Users/__WE_USER__/writeessay-server/cloudflared/__TUNNEL_ID__.json
+
+ingress:
+  # 맥 안 상태 확인 경로(/internal/*)는 터널 밖(127.0.0.1)에서만 열리도록 터널 입구에서 404로 끊는다.
+  - hostname: origin-write.ssamuniverse.com
+    path: ^/internal(/|$)
+    service: http_status:404
+
+  # 글방 정적 파일·REST(/api/*)·실시간 웹소켓(/ws).
+  # CloudFront는 AllViewerExceptHostHeader로 원본 Host를 보내므로 여기서 정식 호스트로 덮어쓴다.
+  - hostname: origin-write.ssamuniverse.com
+    service: http://127.0.0.1:4460
+    originRequest:
+      httpHostHeader: write.ssamuniverse.com
+
+  - service: http_status:404

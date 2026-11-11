@@ -1,0 +1,421 @@
+/*
+ * /dev/editor 스타일. tokens.css 변수만 쓰고 직접 색 코드·그라데이션·유리 효과는 쓰지 않는다(PRD 8.10).
+ * 태블릿 한 대로 시험하기 좋게 모든 누를 곳의 최소 높이를 48px로 맞춘다(PRD 14장).
+ */
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--sp-4) var(--sp-4) calc(120px + var(--kb-offset, 0px));
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.titleGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.metaPill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--surface);
+  border: var(--stroke) solid var(--line);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.alertCard {
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: var(--stroke-focus) solid var(--rose-ink);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.alertTitle {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  color: var(--rose-ink);
+}
+
+.alertBody {
+  margin: 0;
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+
+.secretForm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.secretInput {
+  flex: 1 1 260px;
+  min-height: 48px;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-body);
+}
+
+.infoBanner {
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--butter);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-small);
+  color: var(--ink);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.panel {
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-paper);
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.toolbarRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.controlGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.groupLabel {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  color: var(--ink-sub);
+  margin-right: var(--sp-1);
+}
+
+.button {
+  min-height: 48px;
+  min-width: 48px;
+  padding: var(--sp-2) var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-press);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: var(--shadow-press-down);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.buttonActive {
+  background: var(--butter);
+  color: var(--ink);
+}
+
+.buttonPrimary {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+
+.buttonPrimary:active:not(:disabled) {
+  background: var(--primary-pressed);
+}
+
+.buttonTeacher {
+  background: var(--surface);
+  border-color: var(--teacher-ink);
+  color: var(--teacher-ink);
+}
+
+.buttonTeacherActive {
+  background: var(--teacher);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.buttonDanger {
+  background: var(--rose);
+  color: var(--ink);
+}
+
+.botHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.botTitleWrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.botTitle {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+}
+
+.botGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--sp-2);
+}
+
+.botStatusText {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+.editorCard {
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-paper);
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.titleInput {
+  width: 100%;
+  min-height: 52px;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg);
+  border: var(--stroke) solid var(--line);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  line-height: var(--lh-body);
+}
+
+.bodyStage {
+  position: relative;
+  width: 100%;
+  background: var(--bg);
+  border-radius: var(--r-sm);
+}
+
+.bodyInput {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  min-height: 320px;
+  height: 44dvh;
+  padding: var(--sp-3) var(--sp-4);
+  margin: 0;
+  background: transparent;
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-sm);
+  font-family: var(--font-sans);
+  font-size: var(--dev-font-size, var(--fs-write));
+  line-height: var(--lh-write);
+  resize: vertical;
+  overflow-y: auto;
+}
+
+.checklist {
+  background: var(--surface);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.checklistSummary {
+  min-height: 52px;
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-title);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checklistContent {
+  padding: 0 var(--sp-4) var(--sp-4);
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.checklistItem {
+  min-height: 48px;
+  padding: var(--sp-2) var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  background: var(--bg);
+  border: var(--stroke) solid var(--line);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.checkbox {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  accent-color: var(--teacher-ink);
+}
+
+.checklistTextDone {
+  color: var(--ink-sub);
+  text-decoration: line-through;
+}
+
+.bottomBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--kb-offset, 0px);
+  z-index: 30;
+  background: var(--surface);
+  border-top: var(--stroke) solid var(--ink);
+  padding: var(--sp-2) var(--sp-4) calc(var(--sp-2) + env(safe-area-inset-bottom, 0px));
+}
+
+.bottomBarInner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.statusCluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.statusBadge {
+  min-height: 36px;
+  padding: var(--sp-1) var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  border: var(--stroke) solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--bg);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+}
+
+.badgeSaved {
+  border-color: var(--sage-ink);
+  color: var(--sage-ink);
+}
+
+.badgeSending {
+  border-color: var(--sky-ink);
+  color: var(--sky-ink);
+}
+
+.badgeLocal {
+  background: var(--butter);
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.badgeLocked {
+  border-color: var(--rose-ink);
+  color: var(--rose-ink);
+}
+
+.badgeOffline {
+  border-color: var(--rose-ink);
+  color: var(--rose-ink);
+}
+
+.holdPill {
+  min-height: 36px;
+  padding: var(--sp-1) var(--sp-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  background: var(--bg);
+  border: var(--stroke-focus) solid var(--teacher);
+  border-radius: var(--r-pill);
+  color: var(--teacher-ink);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+}
+
+.historyCluster {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}

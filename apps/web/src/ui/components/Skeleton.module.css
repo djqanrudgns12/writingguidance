@@ -1,0 +1,47 @@
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.card {
+  padding: var(--sp-5);
+  border-radius: var(--r-card);
+}
+
+.tile {
+  padding: var(--sp-4);
+  border-radius: var(--r-sm);
+}
+
+.line {
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.bar {
+  display: block;
+  width: 100%;
+  height: 16px;
+  border-radius: var(--r-pill);
+  background: var(--paper-line);
+}
+
+.shortBar {
+  width: 65%;
+}
+
+.label {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}

@@ -1,0 +1,149 @@
+.page {
+  padding: var(--sp-5);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.heading {
+  margin: var(--sp-6) 0 var(--sp-4);
+  font-size: var(--fs-title);
+}
+
+.heading:first-child {
+  margin-top: 0;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-8);
+}
+
+.label {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: var(--sp-4);
+}
+
+.swatch {
+  margin: 0;
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+}
+
+.chip {
+  width: 100%;
+  height: 56px;
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-sm);
+}
+
+.card {
+  width: 100%;
+  height: 56px;
+  background: var(--surface);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-card);
+}
+
+.caption {
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+  word-break: break-all;
+}
+
+.sample {
+  margin: 0;
+}
+
+.rowWrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.twoColGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sp-4);
+  align-items: start;
+}
+
+/* PRD F-05: 폰은 2열×3줄, 태블릿·PC는 3열×2줄 */
+.genreGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+.studentGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--sp-3);
+}
+
+.artPreview {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+}
+
+.bodyText {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.centerBox {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.artSlot {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-small);
+}
+
+@media (min-width: 768px) {
+  .genreGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: var(--sp-4);
+  }
+
+  .twoColGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

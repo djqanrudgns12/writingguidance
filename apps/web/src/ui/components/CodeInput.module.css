@@ -1,0 +1,170 @@
+.wrapper {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+}
+
+.slotsArea {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  max-width: 100%;
+  cursor: text;
+}
+
+.hiddenInput {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.slots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  flex-wrap: nowrap;
+}
+
+.slotsSm {
+  gap: var(--sp-1);
+}
+
+.slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 56px;
+  border-radius: var(--r-sm);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  font-family: var(--font-sans);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  font-variant-numeric: tabular-nums;
+  transition:
+    box-shadow var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+/* 360px 화면에서 8칸도 넘치지 않는 작은 칸 변형(8 * 34 + 7 * 4 = 300px) */
+.slotSm {
+  width: 34px;
+  height: 44px;
+  font-size: var(--fs-body);
+}
+
+/*
+ * 작은 칸을 써도 실제 입력 대상(칸 묶음 위 투명 입력칸, `inset: 0`)은 48px 이상이게 칸 묶음 자리를 늘린다
+ * (PRD 7.3 터치 48px, P5-1 [중-6]). 보이는 칸은 어떤 폭에서도 44px 아래로 줄이지 않는다.
+ */
+.wrapper[data-size='sm'] .slotsArea {
+  min-height: 48px;
+  align-items: center;
+}
+
+.filled {
+  background: var(--bg);
+}
+
+.active {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: -1px;
+  box-shadow: var(--focus-ring);
+}
+
+/* 크기·채움·초점 변형과 함께 쓰여도 빨간 오류 테두리가 가려지지 않게 뒤에 둔다 */
+.slotError {
+  border-color: var(--rose-ink);
+}
+
+.slotError.active {
+  border-color: var(--rose-ink);
+  outline-color: var(--rose-ink);
+}
+
+.slotDisabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.digit {
+  line-height: 1;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+}
+
+.slotSm .dot {
+  width: 10px;
+  height: 10px;
+}
+
+.error {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  color: var(--rose-ink);
+  text-align: center;
+}
+
+@container (max-width: 340px) {
+  .slots {
+    gap: var(--sp-1);
+  }
+
+  .slot {
+    width: 38px;
+    height: 48px;
+    font-size: var(--fs-lead);
+  }
+
+  .slotSm {
+    width: 32px;
+    height: 44px;
+    font-size: var(--fs-body);
+  }
+
+  .slotError {
+    border-color: var(--rose-ink);
+  }
+}
+
+@media (max-width: 380px) {
+  .slots {
+    gap: var(--sp-1);
+  }
+
+  .slot {
+    width: 42px;
+    height: 50px;
+    font-size: var(--fs-lead);
+  }
+
+  .slotSm {
+    width: 32px;
+    height: 44px;
+    font-size: var(--fs-body);
+  }
+
+  .slotError {
+    border-color: var(--rose-ink);
+  }
+}

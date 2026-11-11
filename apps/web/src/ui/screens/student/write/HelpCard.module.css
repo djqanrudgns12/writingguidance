@@ -1,0 +1,44 @@
+/* 도움 질문 카드(PRD F-07): 쓰기 칸 위에 펼쳐지는 종이 카드 */
+.card {
+  width: 100%;
+}
+
+.counter {
+  color: var(--ink-sub);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+}
+
+.memo {
+  font-size: var(--fs-body);
+}
+
+.nav {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.song {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.songGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.songLabel {
+  margin: 0;
+  font-weight: var(--fw-title);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

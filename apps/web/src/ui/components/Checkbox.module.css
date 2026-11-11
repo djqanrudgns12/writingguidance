@@ -1,0 +1,102 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 48px;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.card {
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-card);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  cursor: inherit;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+/* 초3 손가락 터치 영역 48x48px 확보(PRD 7.3). */
+.box::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.lg .box {
+  width: 28px;
+  height: 28px;
+}
+
+.md .box {
+  width: 24px;
+  height: 24px;
+}
+
+.box[data-checked] {
+  background: var(--butter);
+  box-shadow: var(--shadow-press-down);
+}
+
+.box:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+}
+
+.textGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-title);
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.lg .label {
+  font-size: var(--fs-lead);
+}
+
+.description {
+  font-size: var(--fs-small);
+  line-height: 1.35;
+  color: var(--ink-sub);
+}

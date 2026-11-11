@@ -1,0 +1,113 @@
+.triggerButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 44px;
+  min-width: 48px;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-pill);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-title);
+  cursor: pointer;
+}
+
+.triggerButton::after {
+  content: '';
+  position: absolute;
+  inset: -2px 0;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.triggerButton:hover {
+  background: var(--bg);
+}
+
+.triggerButton:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.positioner {
+  z-index: 35;
+}
+
+.popup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: min(360px, calc(100vw - var(--sp-6)));
+  padding: var(--sp-5);
+  border-radius: var(--r-card);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-paper);
+  font-family: var(--font-sans);
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.popup[data-starting-style],
+.popup[data-ending-style] {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+  color: var(--ink);
+}
+
+.closeButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.closeButton::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.description {
+  margin: 0;
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}

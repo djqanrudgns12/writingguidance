@@ -1,0 +1,77 @@
+@keyframes dropDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.noticeDrop {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  max-width: min(560px, 100%);
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-card);
+  border: var(--stroke) solid var(--ink);
+  background: var(--butter);
+  color: var(--ink);
+  box-shadow: var(--shadow-paper);
+  font-family: var(--font-sans);
+  animation: dropDown var(--dur) var(--ease) both;
+}
+
+.senderBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-shrink: 0;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+}
+
+.message {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-title);
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.dismissButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.dismissButton::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noticeDrop {
+    animation: none;
+    transform: none;
+  }
+}

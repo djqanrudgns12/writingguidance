@@ -1,0 +1,37 @@
+.soloRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: calc(-1 * var(--sp-2));
+}
+
+.hint {
+  margin: 0;
+  color: var(--ink-sub);
+  font-size: var(--fs-body);
+  text-align: center;
+}
+
+.code {
+  align-self: center;
+}
+
+.checking {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  color: var(--sky-ink);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+}
+
+.keypad {
+  align-self: center;
+  width: min(320px, 100%);
+}
+
+.pasteRow {
+  display: flex;
+  justify-content: center;
+}

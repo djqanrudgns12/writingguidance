@@ -1,0 +1,149 @@
+.iconButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: var(--r-pill);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+/* 작은 시각 크기(sm)도 터치 영역 최소 48x48px을 보장한다(PRD 7.3). */
+.iconButton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.md {
+  width: 48px;
+  height: 48px;
+}
+
+.sm {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.sm::after {
+  inset: -4px;
+}
+
+.primary {
+  background: var(--primary);
+  color: var(--primary-ink);
+  border: var(--stroke) solid var(--ink);
+}
+
+.primary:not(:disabled) {
+  box-shadow: var(--shadow-press);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--primary-pressed);
+}
+
+.primary:active:not(:disabled) {
+  background: var(--primary-pressed);
+  transform: translateY(2px);
+  box-shadow: var(--shadow-press-down);
+}
+
+.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--stroke) solid var(--ink);
+}
+
+.secondary:not(:disabled) {
+  box-shadow: var(--shadow-soft);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.secondary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--ink);
+  border: var(--stroke) solid transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--paper-line);
+}
+
+.ghost:active:not(:disabled) {
+  background: var(--line);
+}
+
+.danger {
+  background: var(--rose);
+  color: var(--ink);
+  border: var(--stroke) solid var(--ink);
+}
+
+.danger:not(:disabled) {
+  box-shadow: var(--shadow-press);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--rose-pressed);
+}
+
+.danger:active:not(:disabled) {
+  background: var(--rose-pressed);
+  transform: translateY(2px);
+  box-shadow: var(--shadow-press-down);
+}
+
+.iconButton:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.loading {
+  cursor: progress;
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+/* 움직임 줄이기: 누를 때 내려앉지 않는다(PRD 8.9, P5-1 [하-5]). */
+@media (prefers-reduced-motion: reduce) {
+  .primary:active:not(:disabled) {
+    transform: none;
+  }
+  .secondary:active:not(:disabled) {
+    transform: none;
+  }
+  .danger:active:not(:disabled) {
+    transform: none;
+  }
+}

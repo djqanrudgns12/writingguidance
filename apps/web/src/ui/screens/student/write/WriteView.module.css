@@ -1,0 +1,350 @@
+/*
+ * S5 쓰기 화면(PRD F-06). 배치는 뿌리의 data-layout(wide | narrow)이 정한다(미디어 쿼리가 아님):
+ * 입력칸은 두 배치에서 같은 DOM 자리에 있고, 격자 자리만 바뀐다(PLAN §6.3 "입력칸 옮기기 금지").
+ */
+.write {
+  --write-lh: calc(var(--fs-write) * var(--lh-write));
+  --side-w: min(420px, 38vw);
+  --dock-h: 72px;
+  /* 아래 토스트가 떠 있는 동안 글 끝을 토스트 위까지 올려 읽을 수 있게 비워 둘 높이(토스트 한 줄 48px + 사이) */
+  --toast-room: 0px;
+  --content-w: 880px;
+  min-height: var(--screen-min-h, 100dvh);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.write[data-layout='narrow'] {
+  --dock-h: 124px;
+}
+
+.write[data-layout='wide'][data-panel='open'] {
+  grid-template-columns: minmax(0, 1fr) var(--side-w);
+}
+
+.write[data-toast='open'] {
+  --toast-room: calc(48px + var(--sp-3));
+}
+
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4) calc(var(--dock-h) + var(--toast-room) + var(--kb-offset, 0px) + var(--sp-6));
+}
+
+.main > * {
+  width: min(var(--content-w), 100%);
+}
+
+/* ── 상단 바 ── */
+.topBar {
+  display: grid;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  background: var(--bg);
+  border-bottom: var(--stroke-thin) solid var(--line);
+}
+
+.write[data-layout='wide'] .topBar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  /*
+   * 글 종류 칩·저장 상태 칸은 0까지 줄 수 있다(넉넉하면 내용 폭 그대로). 창이 좁아진 직후 `data-layout`이
+   * 아직 wide인 한 장면(미디어 쿼리 알림·다시 그리기 전, PRD 16.5)에도 `···`이 화면 밖으로 밀리지 않게 한다.
+   */
+  grid-template-columns: auto minmax(0, auto) minmax(0, 1fr) minmax(0, auto) auto auto;
+  grid-template-areas: 'back genre title tools menu timer';
+}
+
+/*
+ * 옆 패널이 쓰기 칸을 좁힐 때(`data-compact`, layout.ts): 한 줄이면 제목 칸이 39~160px까지 줄어(P5-4 시각 검토 1번)
+ * 제목을 둘째 줄 전체로 내린다. 첫 줄 칸은 한 줄 배치와 같이 0까지 줄 수 있다.
+ */
+.write[data-layout='wide'][data-compact='true'] .topBar {
+  grid-template-columns: auto minmax(0, auto) minmax(0, 1fr) minmax(0, auto) auto auto;
+  grid-template-areas:
+    'back genre gap tools menu timer'
+    'title title title title title title';
+  row-gap: var(--sp-1);
+}
+
+.write[data-layout='narrow'] .topBar {
+  grid-template-columns: auto minmax(0, auto) minmax(0, 1fr) auto;
+  /* 360px에서 한 줄에 다 들어가지 않아 타이머는 제목 줄 오른쪽에 둔다 */
+  grid-template-areas:
+    'back genre gap menu'
+    'title title title timer';
+  row-gap: var(--sp-1);
+}
+
+.back {
+  grid-area: back;
+}
+
+.genre {
+  grid-area: genre;
+  min-width: 0;
+}
+
+/* 긴 글 종류·하위 종류 이름은 칸 폭에서 말줄임한다(칩 부품이 말줄임을 맡고, 여기서는 칸보다 넓어지지 않게만). */
+.genre > * {
+  max-width: 100%;
+}
+
+.title {
+  grid-area: title;
+  min-width: 0;
+  width: 100%;
+  /* 터치 영역 48px(PRD 7.3, 디자인 판정 5번) */
+  min-height: 48px;
+  padding: 0 var(--sp-3);
+  border: 0;
+  /* 입력칸 밑줄은 바탕 위 3:1 이상(--line은 1.29:1, P5-1 대비표). */
+  border-bottom: var(--stroke-thin) solid var(--line-strong);
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  background: transparent;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.title::placeholder {
+  color: var(--ink-sub);
+  font-weight: normal;
+}
+
+.title:focus {
+  border-bottom-color: var(--ink);
+  background: var(--surface);
+}
+
+.tools {
+  grid-area: tools;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  /* 칸이 내용보다 좁아지는 한 장면에만 가로로 자른다. 초점 띠는 잘리지 않게 여유를 둔다. */
+  overflow-x: clip;
+  overflow-clip-margin: var(--sp-2);
+}
+
+.menu {
+  grid-area: menu;
+  justify-self: end;
+}
+
+.timer {
+  grid-area: timer;
+  justify-self: end;
+}
+
+.genreStatic {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+  font-weight: var(--fw-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.undoRedo {
+  display: inline-flex;
+  gap: var(--sp-1);
+}
+
+/* ── 띠(오프라인·닫힘·보내지 못한 글·제출됨) ── */
+.banners {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.banners:empty {
+  display: none;
+}
+
+/* ── 쓰기 칸 종이 ── */
+.paper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--surface);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-paper);
+}
+
+.toolsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.structure {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* 공책 줄 쓰기 칸(`NotebookField`)이 종이 안에 있으므로 칸 테두리는 초점일 때만 그린다(종이 테두리와 겹치지 않게). */
+.paper .stage {
+  border-color: transparent;
+  /*
+   * 거울 층(adapters/editor/mirror.ts)은 입력칸 폭을 px로 따라 적고 크기 관찰로 다시 맞춘다. 창이 좁아진 직후
+   * 다시 맞추기 전 한 장면에 옛 폭이 화면 밖으로 나가지 않게 가로로만 자른다(세로·초점 띠는 그대로).
+   */
+  overflow-x: clip;
+}
+
+/*
+ * 제출 도장(PRD F-11·8.9, P5-4 시각 검토 6번): 글 위에 그림이 겹치지 않게 화면 가운데 종이 카드에 찍고,
+ * 바탕색 막으로 그 순간만 글을 옅게 가린다. 누르기는 그대로 통과한다(1초 안에 사라지는 순간 효과).
+ */
+.stampOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  pointer-events: none;
+}
+
+.stampOverlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  opacity: 0.88;
+}
+
+.stampCard {
+  position: relative;
+  max-width: 100%;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--surface);
+  border: var(--stroke) solid var(--ink);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-paper);
+}
+
+/* ── 옆 결과 패널(900px 이상) ── */
+.side {
+  position: sticky;
+  top: 0;
+  height: var(--screen-h, 100dvh);
+  padding: var(--sp-3) var(--sp-4) var(--sp-3) 0;
+  min-width: 0;
+}
+
+/* ── 하단 바 ── */
+.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--kb-offset, 0px);
+  z-index: 20;
+  padding: var(--sp-2) var(--sp-4) max(var(--sp-2), env(safe-area-inset-bottom));
+  background: var(--bg);
+  border-top: var(--stroke-thin) solid var(--line);
+}
+
+.write[data-layout='wide'][data-panel='open'] .dock,
+.write[data-layout='wide'][data-panel='open'] .toastArea {
+  right: var(--side-w);
+}
+
+.dockInner {
+  width: min(var(--content-w), 100%);
+  margin: 0 auto;
+  display: grid;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.write[data-layout='wide'] .dockInner {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'chips submit';
+}
+
+.write[data-layout='narrow'] .dockInner {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'chips chips'
+    'tools submit';
+}
+
+.dockChips {
+  grid-area: chips;
+  min-width: 0;
+}
+
+.dockTools {
+  grid-area: tools;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.dockSubmit {
+  grid-area: submit;
+  justify-self: end;
+}
+
+/*
+ * ── 교사 알림·보류 알약 자리(디자인 판정 2번) ──
+ * 떠 있는 층으로 두면 제목·타이머·도움 질문을 덮어서, 상단 바 아래 전용 자리에 둔다.
+ * 넓은 배치: 붙어 있는 상단 바의 마지막 줄(바 높이만큼 늘어날 뿐 아무것도 덮지 않는다).
+ * 좁은 배치: 상단 바 바로 아래 흐름 안. 글을 내려 읽는 중이면 화면 위에 붙어 계속 보인다.
+ */
+.noticeSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.write[data-layout='wide'] .noticeSlot {
+  grid-column: 1 / -1;
+}
+
+.write[data-layout='narrow'] .noticeSlot {
+  position: sticky;
+  top: var(--sp-2);
+  z-index: 15;
+}
+
+/* ── 아래 떠 있는 토스트(글자 배치를 밀지 않게 흐름 밖에 둔다) ── */
+.toastArea {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--dock-h) + var(--kb-offset, 0px) + var(--sp-3));
+  z-index: 25;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--sp-4);
+  pointer-events: none;
+}
+
+.toastArea > * {
+  pointer-events: auto;
+}

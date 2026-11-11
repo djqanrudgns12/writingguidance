@@ -1,0 +1,74 @@
+.pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 36px;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-pill);
+  border: var(--stroke) solid var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.running {
+  background: var(--butter);
+  color: var(--ink);
+}
+
+.paused {
+  background: var(--surface);
+  color: var(--ink-sub);
+  border-style: dashed;
+}
+
+.urgent {
+  background: var(--rose);
+  color: var(--ink);
+}
+
+.ended {
+  background: var(--rose);
+  color: var(--ink);
+}
+
+.interactive {
+  min-height: 44px;
+  min-width: 48px;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+}
+
+.interactive::after {
+  content: '';
+  position: absolute;
+  inset: -2px 0;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.interactive:hover {
+  opacity: 0.92;
+}
+
+.interactive:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-body);
+}
+
+.status {
+  font-size: var(--fs-small);
+}

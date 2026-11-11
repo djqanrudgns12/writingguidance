@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 쌤유 글방 5분 주기 상태 감시·하트비트 데몬 (PLAN §15.2, §15.5).
+     로컬 /internal/health · 공개 /api/health · 공개 wss://write.ssamuniverse.com/ws · 원본 403을 모두 확인해
+     성공했을 때만 CloudWatch Writeessay/EndToEndOK=1을 보낸다.
+     첫 배포 전에는 bootstrap/scripts 사본을, 배포 뒤에는 app/ops/scripts를 실행한다. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ssamwrite.watch</string>
+  <key>UserName</key><string>__WE_USER__</string>
+  <key>WorkingDirectory</key><string>/Users/__WE_USER__/writeessay-server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>d=/Users/__WE_USER__/writeessay-server; s=$d/app/ops/scripts; [ -f "$s/heartbeat.sh" ] || s=$d/bootstrap/scripts; exec /bin/sh "$s/heartbeat.sh"</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>/Users/__WE_USER__</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>300</integer>
+  <key>StandardOutPath</key><string>/Users/__WE_USER__/writeessay-server/logs/watch.log</string>
+  <key>StandardErrorPath</key><string>/Users/__WE_USER__/writeessay-server/logs/watch.log</string>
+</dict>
+</plist>

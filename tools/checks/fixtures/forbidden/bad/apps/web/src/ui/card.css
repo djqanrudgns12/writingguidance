@@ -1,0 +1,7 @@
+.card {
+  color: #ff0000;
+  background-color: rgb(255, 255, 255);
+  box-shadow: 0 4px 12px var(--ink);
+  backdrop-filter: blur(8px);
+  background-image: linear-gradient(to bottom, var(--bg), var(--surface));
+}

@@ -1,0 +1,6 @@
+/* 주석 안의 #ff0000 설명은 허용 */
+.card {
+  color: var(--ink);
+  background: var(--bg);
+  box-shadow: var(--shadow-press);
+}

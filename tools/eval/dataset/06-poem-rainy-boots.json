@@ -1,0 +1,34 @@
+{
+  "id": "06-poem-rainy-boots",
+  "genre": "poem",
+  "subtype": "children-poem",
+  "text": "노란 장화를 신고\n첨벙첨벙 물웅덩이를 건너요\n\n비방울이 장화 코에\n톡톡톡 노크를 하면\n개구리처럼 폴짝 뛰지요\n\n우산 끝에 매달린 물방울도\n나랑 가치 춤을 추고\n구름솜 이불 아래\n온 동네가 반짝반짝 빛나요",
+  "helpNotes": [
+    {
+      "question": "무엇을 보고 쓰나요?",
+      "note": "비 오는 날 노란 장화를 신고 물웅덩이를 밟는 모습"
+    },
+    {
+      "question": "어떤 마음이 드나요?",
+      "note": "신나고 상쾌한 마음"
+    },
+    {
+      "question": "무엇에 빗대어 볼까요?",
+      "note": "장화를 신은 내 발을 개구리에, 구름을 솜이불에 빗대었다"
+    }
+  ],
+  "plantedErrors": [
+    {
+      "original": "비방울이",
+      "suggestion": "빗방울이",
+      "kind": "spelling"
+    },
+    {
+      "original": "나랑 가치",
+      "suggestion": "나랑 같이",
+      "kind": "spelling"
+    }
+  ],
+  "mustNotFlag": ["첨벙첨벙", "톡톡톡", "구름솜"],
+  "notes": "초등 3학년 동시. 의성어·의태어(첨벙첨벙, 톡톡톡)와 시적 신조어(구름솜)를 맞춤법 오류로 잡지 않는지 확인한다."
+}

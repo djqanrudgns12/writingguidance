@@ -1,0 +1,8 @@
+.lines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 27px,
+    var(--paper-line) 28px
+  );
+}

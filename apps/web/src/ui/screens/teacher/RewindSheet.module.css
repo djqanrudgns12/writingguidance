@@ -1,0 +1,39 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-4);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  color: var(--ink-sub);
+}
+
+/* 지난 글 미리 보기는 읽기 전용 카드(그림자 없음, 옅은 선 1px). */
+.preview {
+  max-height: 36dvh;
+  padding: var(--sp-4);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+  overflow-y: auto;
+}
+
+.previewTitle {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+}
+
+.previewBody {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: var(--fs-write);
+  line-height: var(--lh-write);
+}

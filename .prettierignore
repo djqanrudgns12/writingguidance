@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-devices/
+coverage/
+playwright-report/
+test-results/
+.local/
+package-lock.json
+*.sqlite*
+docs/archive/
+*.md
+apps/web/src/ui/icons/icons.generated.tsx

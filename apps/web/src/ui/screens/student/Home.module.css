@@ -1,0 +1,13 @@
+.home {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-display);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}

@@ -1,0 +1,9 @@
+/* 대시보드 밖 교사 화면(T0·T1·T2·T5)의 토스트 자리. 대시보드 토스트 자리(Dashboard.module.css)와 같은 위치. */
+.layer {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--sp-5) + var(--kb-offset));
+  z-index: 50;
+  width: min(560px, calc(100% - var(--sp-8)));
+  transform: translateX(-50%);
+}

@@ -1,0 +1,108 @@
+/*
+ * 한 줄 토스트: 글 · 행동 단추 · 닫기를 늘 한 줄에 둔다(P5-4 시각 검토 4번: 360px에서 닫기가 아래 줄로 떨어졌다).
+ * 좁으면 글만 칸 안에서 줄을 바꾸고 단추는 줄지 않는다.
+ */
+.toast {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: nowrap;
+  min-height: 48px;
+  max-width: 100%;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);
+  border-radius: var(--r-sm);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-paper);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.default {
+  background: var(--surface);
+}
+
+.warning {
+  background: var(--butter);
+}
+
+.danger {
+  background: var(--rose);
+}
+
+.lead {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.message {
+  min-width: 0;
+  font-weight: var(--fw-title);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: 48px;
+  min-width: 48px;
+  margin: calc(-1 * var(--sp-1)) 0;
+  white-space: nowrap;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-pill);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  background: var(--bg);
+}
+
+.actionButton:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.dismissButton {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin: calc(-1 * var(--sp-2));
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.dismissButton:hover {
+  background: var(--paper-line);
+}
+
+.dismissButton:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}

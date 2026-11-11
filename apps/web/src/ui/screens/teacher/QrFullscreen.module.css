@@ -1,0 +1,119 @@
+/* 교실 TV에 띄우는 전체 화면. 흰 종이 한 장 위에 잉크 QR과 큰 숫자만 둔다(장식·그림 없음). */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-8) var(--sp-4);
+  background: var(--surface);
+  color: var(--ink);
+  overflow-y: auto;
+}
+
+.close {
+  position: absolute;
+  top: var(--sp-4);
+  right: var(--sp-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-pill);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+}
+
+.close:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-6);
+  width: 100%;
+  max-width: 1200px;
+}
+
+.qr {
+  width: min(78vw, 56vh);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+  text-align: center;
+}
+
+.room {
+  margin: 0;
+  font-size: var(--fs-lead);
+  color: var(--ink-sub);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.caption {
+  font-size: var(--fs-body);
+  color: var(--ink-sub);
+}
+
+/* 큰 숫자 토큰이 없어 제목 크기를 화면 폭에 맞춰 키운다(교실 뒤에서도 읽히게). */
+.code {
+  font-size: clamp(calc(var(--fs-display) * 2), 12vw, calc(var(--fs-display) * 5));
+  font-weight: var(--fw-title);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.url {
+  font-size: clamp(var(--fs-lead), 3.4vw, calc(var(--fs-display) * 1.5));
+  font-weight: var(--fw-title);
+  overflow-wrap: anywhere;
+}
+
+@media (min-aspect-ratio: 5/4) and (min-width: 768px) {
+  .content {
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--sp-10);
+  }
+
+  .qr {
+    width: min(46vw, 78vh);
+  }
+
+  .text {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .block {
+    align-items: flex-start;
+  }
+
+  .code {
+    font-size: clamp(calc(var(--fs-display) * 2), 8vw, calc(var(--fs-display) * 5));
+  }
+
+  .url {
+    font-size: clamp(var(--fs-lead), 2.4vw, calc(var(--fs-display) * 1.5));
+  }
+}

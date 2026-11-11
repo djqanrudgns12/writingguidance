@@ -1,0 +1,170 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border-radius: var(--r-pill);
+  font-family: var(--font-sans);
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+/* 시각 높이 44px 단추도 초3 손가락 기준 터치 영역 48x48px을 확보한다(PRD 7.3). */
+.button::after {
+  content: '';
+  position: absolute;
+  inset: -2px 0;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.lg {
+  min-height: 52px;
+  min-width: 52px;
+  padding: var(--sp-3) var(--sp-6);
+  font-size: var(--fs-lead);
+}
+
+.md {
+  min-height: 44px;
+  min-width: 48px;
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-body);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.primary {
+  background: var(--primary);
+  color: var(--primary-ink);
+  border: var(--stroke) solid var(--ink);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.primary:not(:disabled) {
+  box-shadow: var(--shadow-press);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--primary-pressed);
+  color: var(--primary-pressed-ink);
+}
+
+/* 눌림 바탕 위 --primary-ink는 4.04:1이라 더 진한 글자 토큰을 쓴다(P5-1 대비표). */
+.primary:active:not(:disabled) {
+  background: var(--primary-pressed);
+  color: var(--primary-pressed-ink);
+  transform: translateY(2px);
+  box-shadow: var(--shadow-press-down);
+}
+
+.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--stroke) solid var(--ink);
+  font-weight: var(--fw-title);
+}
+
+.secondary:not(:disabled) {
+  box-shadow: var(--shadow-soft);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.secondary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--ink);
+  border: var(--stroke) solid transparent;
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--paper-line);
+}
+
+.ghost:active:not(:disabled) {
+  background: var(--line);
+}
+
+.danger {
+  background: var(--rose);
+  color: var(--ink);
+  border: var(--stroke) solid var(--ink);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.danger:not(:disabled) {
+  box-shadow: var(--shadow-press);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--rose-pressed);
+  color: var(--rose-pressed-ink);
+}
+
+/* 눌림 바탕 위 --ink는 4.03:1이라 더 진한 글자 토큰을 쓴다(P5-1 대비표). */
+.danger:active:not(:disabled) {
+  background: var(--rose-pressed);
+  color: var(--rose-pressed-ink);
+  transform: translateY(2px);
+  box-shadow: var(--shadow-press-down);
+}
+
+.button:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.loading {
+  cursor: progress;
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.countdown {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
+}
+
+/* 움직임 줄이기: 누를 때 내려앉지 않는다(PRD 8.9, P5-1 [하-5]). */
+@media (prefers-reduced-motion: reduce) {
+  .primary:active:not(:disabled) {
+    transform: none;
+  }
+  .secondary:active:not(:disabled) {
+    transform: none;
+  }
+  .danger:active:not(:disabled) {
+    transform: none;
+  }
+}

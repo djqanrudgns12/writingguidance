@@ -1,0 +1,14 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+.sound {
+  width: 100%;
+  min-height: 56px;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+}

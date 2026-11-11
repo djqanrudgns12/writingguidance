@@ -1,0 +1,5 @@
+:root {
+  --bg: #fff8ef;
+  --ink: #4a3b32;
+  --shadow-press: 0 3px 0 var(--ink);
+}

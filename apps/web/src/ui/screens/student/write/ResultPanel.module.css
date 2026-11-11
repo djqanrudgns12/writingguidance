@@ -1,0 +1,394 @@
+/* AI 결과 패널(PRD F-08). 글자 크기 설정은 `--panel-fs`로 받는다(F-13). */
+/* 옆 패널은 내용만큼, 넘치면 패널 안에서 스크롤(감싸는 .side가 화면 높이를 정한다) */
+.side {
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-4);
+  padding: var(--sp-3) 0;
+}
+
+.waitingText {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  text-align: center;
+}
+
+/* PRD 7.2 불러오는 중: 결과 카드(맞춤법 항목·메모 카드)와 같은 모양의 옅은 종이 카드 자리표시 */
+.placeholders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.placeholderCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border: var(--stroke-thin) solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.placeholderBar {
+  display: block;
+  height: 14px;
+  border-radius: var(--r-pill);
+  /* 계속 움직이는 장식은 금지(PRD 8.9)라 깜빡임 없이 옅은 줄로만 둔다. */
+  background: var(--paper-line);
+}
+
+/* 머리 짧은 줄(종류 칸) · 본문 긴 줄 · 본문 끝 줄 */
+.placeholderBar:nth-child(1) {
+  width: 34%;
+  height: 18px;
+}
+
+.placeholderBar:nth-child(2) {
+  width: 90%;
+}
+
+.placeholderBar:nth-child(3) {
+  width: 64%;
+}
+
+/* F-26 한도: 두 줄 안내를 종이 카드 하나에 담는다(바텀시트는 내용 높이) */
+.limitCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5);
+  border: var(--stroke-thin) solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+}
+
+.limitText {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  line-height: var(--lh-body);
+}
+
+.limitHint {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--ink-sub);
+  font-size: var(--fs-small);
+}
+
+.limitHint svg {
+  flex-shrink: 0;
+}
+
+.errorLine,
+.emptyLine {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-sm);
+  font-weight: var(--fw-title);
+  line-height: var(--lh-body);
+}
+
+.errorLine {
+  background: var(--bg);
+  border: var(--stroke) solid var(--rose-ink);
+  color: var(--rose-ink);
+}
+
+.emptyLine {
+  background: var(--bg);
+  border: var(--stroke-thin) solid var(--line);
+  color: var(--sage-ink);
+}
+
+.notice,
+.guideLine {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  color: var(--ink-sub);
+  font-size: var(--fs-small);
+  line-height: var(--lh-body);
+}
+
+.notice svg,
+.guideLine svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.warn {
+  color: var(--rose-ink);
+  font-weight: var(--fw-title);
+}
+
+/* 맞춤법 목록: 누를 수 있는 항목만 잉크 테두리 + 그림자, 못 찾은 항목은 옅은 선만(PRD 8.4 읽기 전용) */
+.spellList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.spellItem {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  min-height: 56px;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-sm);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  font-size: var(--panel-fs, var(--fs-body));
+  line-height: var(--lh-body);
+}
+
+/* 누를 수 있는 항목만 그림자(PRD 8.4 누를 곳이 또렷하게) */
+button.spellItem {
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+}
+
+button.spellItem:hover {
+  background: var(--bg);
+}
+
+button.spellItem:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.spellItemActive {
+  background: var(--butter);
+}
+
+button.spellItemActive:hover {
+  background: var(--butter);
+}
+
+.spellItemLocked {
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+  color: var(--ink-sub);
+}
+
+.spellTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.spellKind {
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+  color: var(--ink-sub);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+}
+
+.spellChange {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1);
+}
+
+.original {
+  color: var(--ink-sub);
+}
+
+.arrow {
+  color: var(--ink-sub);
+}
+
+.suggestion {
+  font-weight: var(--fw-title);
+}
+
+.reason {
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+.unlocated {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-small);
+}
+
+/* 글벗 한마디·다음 방향: 꼬리 없는 메모 카드(PRD 8.4) */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.cardText {
+  margin: 0;
+  font-size: var(--panel-fs, var(--fs-body));
+  line-height: var(--lh-body);
+}
+
+.cardList {
+  margin: 0;
+  padding-left: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.ideaList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.ideaCard {
+  width: 100%;
+}
+
+.ideaNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--sp-2);
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--ink);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  vertical-align: 2px;
+}
+
+/* 다듬은 글: 보기 전용. 바텀시트에서는 내 글과 나란히(위아래) 본다. */
+.polish {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.compare {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.compareTwo {
+  container-type: inline-size;
+}
+
+@container (min-width: 560px) {
+  .compareTwo {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.compareCol {
+  min-width: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+}
+
+.mineCol {
+  background: var(--bg);
+}
+
+.compareHeading {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  color: var(--ink-sub);
+}
+
+.polishText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-size: var(--panel-fs, var(--fs-body));
+  line-height: var(--lh-write);
+  user-select: text;
+}
+
+/* 스트리밍 중 끝자리 표시: 깜빡이지 않는 고정 막대(계속 움직이는 장식 금지, PRD 8.9) */
+.streamCaret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--ink-sub);
+}
+
+.footer {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.received,
+.stale {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-small);
+}
+
+.received {
+  color: var(--ink-sub);
+}
+
+.stale {
+  color: var(--rose-ink);
+  font-weight: var(--fw-title);
+}
+
+.footerActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

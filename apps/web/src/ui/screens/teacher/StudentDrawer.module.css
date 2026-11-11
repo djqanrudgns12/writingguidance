@@ -1,0 +1,248 @@
+/* 서랍 종이: 대시보드 크림 바탕과 구분되는 흰 종이 한 장(PRD 8.4 "서랍의 종이 바탕"). */
+.drawer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: 100%;
+  height: 100%;
+  padding: var(--sp-4);
+  background: var(--surface);
+  color: var(--ink);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.nickname {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.genre {
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+.close,
+.iconButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-pill);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+}
+
+.close::after,
+.iconButton::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.close:hover,
+.iconButton:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.close:focus-visible,
+.iconButton:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.reopen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--sky-ink);
+  background: var(--bg);
+}
+
+.reopenText {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--sky-ink);
+  font-weight: var(--fw-title);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-3);
+  border-bottom: var(--stroke-thin) solid var(--line);
+}
+
+.toolGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.editor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  flex: 1 0 auto;
+}
+
+.hold {
+  align-self: center;
+}
+
+/* 입력칸 경계선은 바탕 위 3:1 이상(--line은 1.36:1, P5-1 대비표). */
+.title {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line-strong);
+  background: var(--surface);
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  line-height: var(--lh-body);
+}
+
+.title:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 0;
+  box-shadow: var(--focus-ring);
+}
+
+.loading {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.loading > * {
+  flex: 1;
+}
+
+.memos {
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+}
+
+.memoSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 48px;
+  padding: var(--sp-2) var(--sp-3);
+  font-weight: var(--fw-title);
+  cursor: pointer;
+  list-style: none;
+}
+
+.memoSummary::-webkit-details-marker {
+  display: none;
+}
+
+.memoCount {
+  margin-left: auto;
+  min-width: 28px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: var(--fs-small);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.memoEmpty {
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-3);
+  color: var(--ink-sub);
+}
+
+.memoList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-3);
+}
+
+/* 읽기 전용 카드: 그림자 없이 옅은 선 1px(PRD 8.4). */
+.memo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+}
+
+.memoQuestion {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  color: var(--ink-sub);
+}
+
+.memoNote {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+@media (min-width: 900px) {
+  .drawer {
+    border-left: var(--stroke) solid var(--ink);
+    padding: var(--sp-5);
+  }
+}

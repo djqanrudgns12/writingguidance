@@ -1,0 +1,50 @@
+/* S4 글 종류(PRD F-05): 폰 2열×3줄, 태블릿·PC 3열×2줄 */
+.page {
+  min-height: var(--screen-min-h, 100dvh);
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-6) var(--sp-4);
+}
+
+.column {
+  width: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--fs-display);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+@media (min-width: 768px) {
+  .tiles {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-4);
+  }
+}
+
+.expand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.purposeCard {
+  width: 100%;
+}

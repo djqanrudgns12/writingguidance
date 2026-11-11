@@ -1,0 +1,45 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--sp-3);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.genreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: var(--sp-2);
+}
+
+.switchGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: var(--sp-2);
+}
+
+/* 스위치 줄: 흰 종이 위 옅은 선 1px(누를 수 있는 칸이 바탕과 구분되게). */
+.switchRow {
+  width: 100%;
+  min-height: 56px;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  color: var(--rose-ink);
+}

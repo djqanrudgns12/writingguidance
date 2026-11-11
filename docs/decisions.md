@@ -85,6 +85,11 @@
 | 049 | PLAN v2 검토 반영: 기기가 만드는 토큰, 제출 계약, AI 예약, 훅 감싸기 | 확정 |
 | 050 | 구현 순서: 위험 먼저(P0~P7), 한글 편집기 관문을 P2로 당김 | 확정 |
 | 051 | 패키지 판 고정과 배포 7일 대기, TypeScript 5.9 유지 | 확정 |
+| 052 | 작업 공간 빌드 방식: 소스 조건 + `.ts` 확장자 import + 개발은 Node 직접 실행 | 확정 |
+| 053 | P2 실시간 확인 결과: 적용 전 검사 방식 확정, 응용 Ping, 다시 붙이기는 `socket.attach` | 확정 |
+| 054 | 편집기 검토 반영: 앱이 하는 변경·선택·읽기 전용·되돌리기 모두 반영 문 완전 열림 뒤 | 확정 |
+| 055 | 글벗 화풍: 시안 5번 "색연필 스케치" 방향 | 확정 (사용자, 캐릭터 시트 2026-11-11 승인) |
+| 056 | P3~P4 규약 세부(상태값 한 곳·명령 역할 표·AI 어댑터 설정·출력 한도 설정화)와 묻지 않고 진행 | 확정 (사용자 지시 + Claude) |
 
 ---
 
@@ -497,4 +502,74 @@
 - **이유**: PRD 0.2-1(구현 시점에 판을 다시 확인)과 ADR-015(쌤유니버스와 같은 대)를 함께 지킨다. 7일 대기는 비용 없이 공급망 위험을 줄인다.
 - **버린 대안**: 최신 판을 그날 받기(막 나온 판의 회귀를 그대로 맞음) / TypeScript 7(쌤유니버스와 대가 갈림, 도구 호환을 따로 확인해야 함).
 - **되돌리기**: `.npmrc` 한 줄.
+- **P1-2 실제 설치 결과 (2026-11-11)**: 7일 규칙으로 `vite` 8.3.5, `@vitejs/plugin-react` 6.2.1, `@playwright/test` 1.64.1, `hono` 4.13.16, `ws` 8.22.1, `zustand` 5.0.16, `jsdom` 30.1.3, `fake-indexeddb` 6.2.7이 들어왔다(나머지는 위 표 그대로). `react-router`는 7.18.5로 고정했다(8.x가 최신이지만 ADR-031·쌤유니버스가 7). `tsx`는 쓰지 않는다(ADR-052). npm 11의 설치 스크립트 차단에서 `better-sqlite3`(맥 arm64 미리 빌드가 패키지에 들어 있어 컴파일 불필요, 로드 확인)와 `fsevents`는 거부로 기록했다(`package.json`의 `allowScripts`). Playwright Chromium(1248)은 이미 있고, WebKit(2370)은 WebKit 화면 시험 전에 받는다.
 
+## ADR-052 · 작업 공간 빌드 방식 (2026-11-11, P1)
+
+- **결정**
+  1. `packages/core`는 `exports`에 **사용자 조건 `@geulbang/source`**를 둔다: 이 조건이면 `src/*.ts`, 아니면 `dist/*.js`. Vite·Vitest·TypeScript(`customConditions`)·개발 실행(`node --conditions=@geulbang/source`)은 소스를 바로 읽고, 운영 서버는 빌드된 `dist`를 읽는다.
+  2. 상대 import는 **`.ts` 확장자**로 쓰고 `rewriteRelativeImportExtensions`로 빌드 때 `.js`로 바꾼다. `erasableSyntaxOnly`로 enum·namespace·매개변수 속성을 막는다(Node 24가 TypeScript를 그대로 실행할 수 있는 문법만).
+  3. 서버 개발 실행은 **Node 24가 TS를 직접 실행**한다(`node --watch`, `tsx` 없음). 운영은 `tsc -b`로 만든 `apps/server/dist/index.js`(실험 기능에 운영을 걸지 않는다).
+  4. 마이그레이션 SQL은 `apps/server/migrations/`(src 밖)에 둬서 빌드 때 복사가 필요 없다.
+  5. 개발 전용 화면은 별도 입구(`apps/web/dev/index.html`, `src/dev/`)로 나눠 운영 빌드에 들어갈 수 없게 한다. Vite `--mode devices` 빌드만 넣는다.
+- **이유**: 의존성 하나(`tsx`)와 빌드 단계 하나(마이그레이션 복사)를 줄이고, 개발과 운영이 같은 소스 규칙을 쓴다. 개발 화면이 운영에 섞이는 길을 구조로 막는다.
+- **버린 대안**: core를 늘 빌드해서 쓰기(개발 중 빌드 대기) / tsconfig `paths`(런타임과 어긋남) / `tsx`(의존성 추가, Node 24로 충분).
+- **되돌리기**: core `exports`와 서버 `dev` 스크립트만 바꾸면 된다.
+
+## ADR-053 · P2 실시간 확인 결과 (2026-11-11)
+
+- **실험 ①(§4.7 대응 9) 통과 → 대안 불필요**: Hocuspocus 4.8.0은 `beforeHandleMessage`를 기다린 뒤 메시지를 적용하면서 `connection.readOnly`를 본다. 훅 안에서 읽기 전용으로 바꾸면 그 메시지부터 거부된다(서버·다른 기기에 들어가지 않고 보낸 기기 사본에 남음). 구현: 글마다 그림자 사본에 먼저 적용해 길이·키·타입을 보고, 위반이면 읽기 전용 + `doc.error {E_DOC_TOO_LARGE}`. 그림자는 서버 문서를 따라 받아 평소 비용은 메시지 한 번 더 적용하는 정도다.
+- **실험 ② 통과**: 잠긴 동안의 편집은 기기에 남고, 풀린 뒤 `forceSync()`로 합쳐진다. 기기 어댑터는 `doc.status {locked:false}`를 받으면 스스로 부른다.
+- **새로 찾은 것 1 — 조용한 연결이 12초마다 끊김**: 브라우저 코드는 웹소켓 ping 프레임을 볼 수 없어 제공자의 `messageReconnectTimeout`이 조용한 연결을 끊는다. 서버가 `HEARTBEAT_SEC`마다 응용 Ping(한 바이트 9)도 보내고, 돌아오는 Pong(한 바이트 10)은 Hocuspocus에 넘기지 않고 가로챈다(넘기면 Hocuspocus가 연결을 닫음). 시험은 고치기 전 실패·고친 뒤 통과를 확인했다.
+- **새로 찾은 것 2 — 글 연결만 닫혔을 때 다시 붙이기**: `provider.detach()`→`attach()`는 닫기 메시지를 먼저 보내 새 연결을 다시 닫는다. 소켓이 살아 있으면 `socket.attach(provider)`로 인증만 다시 보낸다.
+- **새로 찾은 것 3 — 인증 실패 이유**: Hocuspocus는 던진 오류의 `reason` 속성을 기기에 보내고 없으면 `permission-denied`. 판단 훅 감싸기가 `AppError`에 `reason = 코드`를 붙인다.
+- **글 채널 이벤트 더함**: `doc.error {code}`, `doc.status`에 `locked`(PLAN §4.4).
+- **저장 재시도 수치(0.5·1·2초, 30초마다)와 기기 저장소 합치기(50건마다)는 제품 설정이 아니라 내부 값**으로 코드 상수에 둔다(PRD 12.3에 넣지 않음). 사용자가 바꿀 일이 없는 기술 조정값이다.
+
+## ADR-054 · 편집기 검토 반영 (2026-11-11)
+
+- **검토**: Antigravity carbon 독립 검토(P2-7, `docs/reviews/P2-7_editor_review.md`, P0 2·P1 6·P2 3)와 argon 시험 확충(P2-5)이 같은 결함을 따로 찾았다. 수정은 Antigravity carbon(P2-3b), 확인·통합은 Claude.
+- **결정**: 되돌리기·앱이 하는 변경(구조 버튼·되살리기·복원)·맞춤법 선택·읽기 전용 바꾸기는 모두 **반영 문이 완전히 열린 뒤**(3~6번) 한다. 기다리다 깨어난 순간 다시 확인한다. PRD 9.3 문구를 이에 맞췄다(이전 문구는 앱 변경에 3·4번만).
+- **이유**: Safari는 조합 중임을 알리지 않아 "멈춤 500ms"만으로는 조합이 끝났는지 모른다. 버튼이 초점을 가져가면 쓰기 칸에 초점이 없어 반영 문이 바로 열리므로, 평소 버튼 반응은 느려지지 않고 초점이 쓰기 칸에 남은 위험한 경우만 기다린다.
+- **함께 고친 것**: 메모 칸을 붙일 때 빈 메모를 쓰지 않음(다른 기기 메모 덮어쓰기 방지), 조합 끝 신호 누락 시 고착 해제, 선택 변경 이벤트 에코 구분, 제목 칸 줄바꿈 정규화(서버 적용 전 검사도), 원격 커서 정보 zod 검증, 거울 층 다시 맞추기(`syncLayout`), 되돌리기 묶음 끊기, 메모 칸 동적 붙이기(`bindMemo`).
+- **남은 확인(P2-9 실기기)**: 삼성 키보드 어절 조합이 5초 고착 판정에 걸리는지, iPad 천지인 점 문자 코드 포인트, 실제 브라우저 거울 층 정렬.
+
+## ADR-055 · 글벗 화풍: 색연필 스케치 (2026-11-11)
+
+- **결정(사용자)**: 1차 시안 두 개(Codex)는 "촌스럽고 귀엽지 않다"로 버리고, 새 시안 5개(Antigravity, `.local/art/P1-8b/board.png`) 중 **5번 "색연필 스케치"**로 간다: 가늘고 부드러운 색연필 선, 옅은 채색, 실제 고슴도치에 가까운 다정한 모습, 가시에 색연필 결.
+- **영향**: PRD 8.8 스타일 시트의 "평면 채색 + 한 단계 음영 + 바닥 수채 번짐"은 이 화풍에 맞춰 "가는 색연필 선 + 옅은 색연필 채색"으로 다듬는다(`tools/art/style.md`, P3-8). 48px에서 흐려지는 점은 기본 얼굴만 선을 조금 굵게 다시 그려 보완한다. 그림 생성은 Antigravity 내장 이미지 도구(추가 비용 없음)로 한다.
+- **확정(사용자, 2026-11-11)**: P3-8a 캐릭터 시트(여섯 컷: 기본 얼굴·기본·읽는 중·생각 중·반가움·쉬는 중, `.local/art/P3-8a/`)를 승인했다. 이 시트가 2~7번 그림의 기준 그림이다. 후처리 `tools/art/process.mjs`와 `apps/web/src/ui/art/`는 Codex 보류로 Antigravity가 맡는다(P3-8b). 그림은 Vite 자산으로 가져와 `/art/<이름>-<해시>.webp`로 내보내고(1년 캐시), 작은 그림도 JS에 글자로 넣지 않는다(첫 화면 그림 예산을 따로 재려고).
+
+
+## ADR-056 · P3~P4 구현 중 정한 규약 세부와 진행 방식 (2026-11-11)
+
+- **진행 방식(사용자)**: "묻지 말고 마지막 phase까지 진행, 최종 보고는 끝에." 사용자만 할 수 있는 일(실기기 시험 U-10, 맥미니 설정 U-19, 비밀값·API 키, 평가 비용 U-11·모델 승인 U-01, 디자인 승인 U-18, 배포·재부팅·리허설)은 건너뛰고 최종 보고에 모은다. 막히는 세부는 PRD → PLAN 순으로 정하고 이 기록에 남긴다.
+- **위임**: Codex 보류 동안 X 몫(시험·운영 파일·평가 도구·그림)도 Antigravity가 맡는다. 서버 v0 흐름(P3-3)처럼 기존 서버 코드와 깊게 엮이고 Antigravity 대기열이 가득 찬 일은 Claude 서브에이전트(C-sub)로 돌린다. 결과는 늘 Claude가 시험·diff로 확인한다.
+- **상태값 한 곳**: `packages/core/src/domain/status.ts`(DB CHECK와 같은 글자). 서버·기기·규약이 모두 여기서 가져온다.
+- **수업방 채널 규약**(`protocol/room.ts`): 명령 인자 스키마는 설정을 받아 만든다(`createCommandArgSchemas(config)`, 한도는 PRD 12.3). 명령별 역할 표 `COMMAND_ROLES`. `doc.status` 이벤트에 `generation`을 더했다(기기가 제출 세대를 따라가야 해서, §2.3 ⑥). 프로토콜 판은 N·N-1을 받는다.
+- **REST 규약**(`api/index.ts`): `POST /api/rooms`에 `deviceId`를 더했다(기기당 만들기 칸 `ROOM_CREATE_PER_DEVICE_PER_DAY`를 세려고). AI 요청 본문에 `range`와 `meta.helpNotes[{questionId,note}]`. 다듬은 글 스트림 한 줄 모양 `polishLineSchema`를 서버·기기가 함께 쓴다.
+- **AI 어댑터**: `@anthropic-ai/sdk` 1.4.0(7일 대기 통과판, ADR-051). 생각 "끔" = Haiku 5.5 `thinking: disabled`, Sonnet 5.5는 `disabled`가 400이라 `between_tools`. "낮음" = `adaptive` + `output_config.effort: low`. 구조화 출력은 `output_config.format`(json_schema, 길이 제약은 빼고 보냄) + zod 재검증. 서버 측 대체(`fallbacks: "default"`, 베타 `server-side-fallback-2026-07-01`)는 대체 모델(Sonnet) 호출에만 켠다(PRD 6.5). Haiku 5.5에는 서버 측 대체가 없어 우리가 Sonnet으로 다시 묻는다.
+- **AI 최대 출력 토큰**을 설정 `AI_MAX_OUTPUT_TOKENS`(PRD 12.3에 행 추가)로 옮겼다: "바뀔 수 있는 수치는 설정 한 곳" 규칙. 다듬은 글은 원문 글자 수 × 1.3(토큰 어림) × 1.6, 상한 6,000.
+- **학생 글 넣기**: `<text>` 안의 글은 그대로 두고 우리 태그를 흉내 낸 부분만 바꾼다(`guardText`). XML 탈출을 하면 맞춤법 `original`이 학생 글과 달라져 위치를 못 찾기 때문.
+- **새 의존성(웹)**: `qr` 0.7.2(T2 QR, PLAN §6.7), `fflate` 0.7.5(교사 모두 내려받기 zip, §2.3 ⑩). 둘 다 7일 대기 통과판, 의존성 없음, 누를 때·그 화면에서 나중에 불러온다.
+- **PWA는 의존성 없이**: `vite-plugin-pwa`(workbox 묶음)를 들이지 않고 `apps/web/scripts/pwa-plugin.mjs` + `apps/web/sw/sw.template.js`로 미리 저장 목록·`sw.js`·매니페스트를 만든다. 동작은 PLAN §6.6 그대로(수동 적용, 화면 이동은 네트워크 먼저·안 되면 앱 껍데기, `/assets`·`/art`는 쓸 때 저장). 2026-11-11 Playwright Chromium으로 장악·미리 저장·오프라인 딥링크를 확인했다(내장 브라우저 창은 서비스 워커 등록을 막아 확인 불가).
+- **번들 검사 보정**: 매니페스트에만 있는 설치용 아이콘(512px)은 첫 화면 그림 예산에서 뺀다(홈 화면에 추가할 때만 받음). 검사 제외 폴더에 `dist-devices`(실기기 시험 빌드)를 더했다.
+- **자원 보호 장치 예외(사용자, 2026-11-11 한 번)**: "이번에는 우회해도 좋다"는 지시로 운영 빌드·시험 빌드·e2e 3회·전체 시험을 resource-guard 없이 돌렸다(작업자 1개, 아바타 작업은 건드리지 않음). 다음부터는 다시 resource-guard를 쓴다.
+- **선생님 링크 다른 기기**: 링크 `/t/{토큰}`에 방 ID가 없어 `GET /api/teacher/session`(교사 Bearer → {roomId})을 더했다(PRD F-20). 평가 비용 어림(P4-19 `--estimate`): 3회 반복·판정 포함 약 3.72달러(판정 모델 Opus 5.5 단가를 $4/$20로 바로잡음) — U-11 승인 대상.
+- **검토 지적 반영(P5-5a, Codex 독립 검토 8건)**: 저장 확인·제출 검사를 상태 벡터만이 아니라 **스냅숏(상태 벡터 + 삭제 집합)**으로(`protocol/coverage.ts`, 삭제만 한 변경도 "저장됨"·제출을 잘못 통과하지 않게), 메모 칸은 `doc.create` 때 서버가 미리 만들고 칸 바꾸기는 거부, 기기 저장 실패는 남겨 두었다가 다시 쓰고 `E_STORAGE_BLOCKED`, 만료·삭제 방의 기기 사본 정리(`application/purgeLocal.ts`), PIN 감속 뒤 잠금 재확인, meta 키·값 검사, 대기열이 닫힌 글에 막히지 않게, 수업방 채널 일시 인증 실패 재시도. 판 N-1 주의: 옛 기기는 snapshot이 붙은 `doc.persisted`를 버려 "저장됨"이 되지 않는다(v0 배포 전이라 문제없음).
+- **첫 화면 예산**: 경로별 지연 불러오기(`app/lazyPage.tsx`), 실시간 어댑터 지연 import(`adapters/realtime/lazy.ts`), 개발용 문구를 `@geulbang/core/copy/dev`(`koDev`)로 분리, 웹 패키지 `sideEffects`(CSS·진입점만)로 부품 모음을 건너 필요한 부품만 묶음. 2026-11-11 빌드: 첫 화면 JS gzip 약 213KB(한도 250KB). 그림 예산은 그림 불러오기 나누기로 맞추는 중(P3-7d).
+
+## ADR-057 · P5 마감 중 정리 결정 (2026-11-11 밤)
+
+- **진행(사용자)**: 이전 계정 사용량이 끝난 뒤 새 세션에서 이어 간다. 목표는 처음 계획한 phase(P5) 마감, 질문·분기점은 끝에 한꺼번에 보고. Codex·Antigravity 위임 허용.
+- **그림 예산 확정(P3-7d)**: `ui/art/home.ts`(홈이 그리는 그림만 정적), `ui/art/lazy.ts`(나머지는 그릴 때 `import()`), `ui/art/index.ts`(기존 내보내기 유지). `tools/checks/bundle.mjs` 통과.
+- **AI 한도 계산 한 곳**: 서버 예약(`application/aiRequest.ts`)과 기기 칩(`application/aiChip.ts`)이 모두 `domain/aiQuota`의 `cooldownLeftSec`·`aiDayBoundsMs`를 쓴다. 서버의 따로 만든 `startOfDay`는 지웠다.
+- **AI 결과 스키마는 서버·기기 따로 둔다**: 서버는 모델 출력을 길이·개수까지 엄격히 막고, 기기는 저장된 옛 결과와 새 판 서버 결과를 함께 읽어야 해서 느슨하다. 모양이 바뀌면 둘 다 고친다(`apps/web/src/ports/api.ts` 주석).
+- **선생님 링크 토큰 즉시 지우기**: 교사 화면을 지연 불러오기로 바꾼 뒤, 화면 묶음이 도착할 때까지 토큰이 주소창에 남는 틈이 생겼다. 첫 묶음에 작은 껍데기 `app/teacher/TeacherLinkEntry.tsx`를 두어 그리자마자 지운다(PRD F-20).
+- **되돌리기 단추 상태**: 편집기 바인딩이 `historyState()`·`onHistoryChange()`로 되돌릴 것·다시 할 것이 있는지 알린다. 읽기 전용일 때는 둘 다 끈다.
+- **토스트 표시 시간**: PRD 12.3에 따로 키가 없어 `NOTICE_SHOW_SEC`을 그대로 쓴다(새 키는 PRD를 고칠 때).
+- **진단 모드**: PRD 9.3은 "교사가 켤 때만", 13장은 "운영자 시험 때만 서버 설정"으로 적혀 있다. 더 구체적인 13장을 따라 서버 설정 `IME_DIAGNOSTICS_ENABLED` → `hello.config`로만 켠다(수업방 설정 `diagnostics`는 쓰지 않음). PRD 9.3 문장 정리는 다음 PRD 개정 때.
+- **서버 설정 덮기(`hello.config`)**: 기기는 그동안 `hello.config`를 진단·정책 판 말고는 쓰지 않아, 운영자가 서버 설정을 바꿔도 기기 동작(쿨다운·글자 한도 등)이 그대로였다(PLAN §13.1과 어긋남). `adapters/config/liveConfig.ts`가 앱 전체의 설정 객체 하나를 읽기 전용 속성(지금 값을 돌려줌)으로 만들고, 실시간 지연 어댑터가 hello를 받을 때마다 다른 구독보다 먼저 덮는다. 모르는 키는 버리고 스키마를 통과하지 못하면 통째로 무시한다. 객체 참조가 바뀌지 않아 편집기가 다시 붙지 않는다.
+- **P5-5b 2차 검토(Codex) 11건**: 세 갈래(서버·기기 실시간·입장 흐름) Claude 서브에이전트가 재현 시험 먼저 쓰고 고친다(`docs/briefs/P5-5b-fix.md`).
+- **문구 검토 반영(P5-2, Antigravity 초3 기준 검토)**: 학생이 다음 행동을 알 수 없던 오류 문구 5개(E_ROOM_CLOSED·E_NICK_TAKEN·E_FORBIDDEN·E_AUTH·E_VERSION)를 PRD 12.4와 함께 고쳤고, 닫힘 띠·맞춤법 자리 못 찾음·이어 쓰기 띠 받침 조사·PIN 잠김 안내 등 15곳을 고쳤다. PRD에 고정된 학생 안내(오프라인 띠, 동의 안내 13.1, 노래 분위기 이름 F-07, 개인 모드 안내)는 그대로 두고 사용자 판단으로 넘긴다(`docs/reviews/P5-2_copy_review.md` §2 중·하).
+- **쓰기 화면 옆 결과 패널 기준 폭(P5-4 시각 재검수)**: 900~1199px에서 옆 패널이 열리면 상단 바를 두 줄로 나눠 제목 칸을 지키고 AI 칩은 짧은 이름으로 한 줄(`layout.ts` `SIDE_PANEL_ROOMY_QUERY = (min-width: 1200px)`). 900px 제목 칸 39px → 526px. 교사 대시보드 900px 미만은 이어 쓰기 요청 띠를 한 줄 요약으로 접는다. 닫힌 방은 AI 칩·다시 받기를 기기에서도 막는다(서버는 이미 `E_ROOM_CLOSED`).

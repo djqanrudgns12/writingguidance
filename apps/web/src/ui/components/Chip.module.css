@@ -1,0 +1,150 @@
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 44px;
+  min-width: 48px;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-pill);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: 1.2;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease);
+}
+
+/* 터치 영역 최소 48x48px 보장 */
+.chip::after {
+  content: '';
+  position: absolute;
+  inset: -2px 0;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.chip:not(:disabled) {
+  box-shadow: var(--shadow-soft);
+}
+
+.chip:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.chip:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* 움직임 줄이기: 누를 때 내려앉지 않는다(PRD 8.9, P5-1 [하-5]). */
+@media (prefers-reduced-motion: reduce) {
+  .chip:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.selected {
+  background: var(--butter);
+  color: var(--ink);
+  font-weight: var(--fw-title);
+}
+
+.selected:hover:not(:disabled) {
+  background: var(--butter);
+}
+
+/* AI 결과 신선(fresh): 선택됨(--butter)과 다른 모양(쑥색 테두리 + 신선 점)으로 구분한다. */
+.ai_fresh:not(.selected) {
+  border-color: var(--sage-ink);
+  background: var(--surface);
+  font-weight: var(--fw-title);
+}
+
+.ai_fresh:not(.selected):hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.freshDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--sage-ink);
+  background: var(--sage);
+  flex-shrink: 0;
+}
+
+.ai_stale {
+  border-color: var(--ink);
+  /* 색(--bg, 흰 바탕과 1.05:1)만으로는 구분이 안 되어 점선 테두리를 함께 쓴다(P5-1 [중-1]). */
+  border-style: dashed;
+  background: var(--bg);
+}
+
+.ai_guide {
+  background: var(--bg);
+  color: var(--ink-sub);
+  border-style: dashed;
+}
+
+.ai_cooldown {
+  background: var(--bg);
+  color: var(--ink-sub);
+}
+
+.ai_offline,
+.ai_limit {
+  background: var(--bg);
+  color: var(--ink-sub);
+  opacity: 0.55;
+}
+
+.chip:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+  font-weight: var(--fw-title);
+}
+
+.selected .count {
+  color: var(--ink);
+}
+
+/* 버터 바탕 위 --ink-sub는 3.90:1이라 보조 글자도 잉크로 둔다(P5-1 [중-5]). */
+.selected .statusText {
+  color: var(--ink);
+}
+
+.statusText {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+  padding-left: var(--sp-1);
+}

@@ -89,7 +89,7 @@ Cloudflare Tunnel (전용 터널 writeessay, 맥미니 연결자 → ICN, 메트
 **① 수업방 만들기 (PRD F-15)**
 1. 교사 기기: 시작 코드가 기기에 없으면 키패드로 받는다(PRD F-15). 기기가 **선생님 링크 토큰을 직접 만든다**(32바이트 무작위, §7.4). `POST /api/rooms` {className, title, schoolName?, showSchool, genres, aiButtons, pin, linkTokenHash, commandId} + 머리 `X-Start-Code`.
 2. 서버: zod 검증 → 시작 코드 확인(틀리면 PIN과 같은 칸으로 셈) → 만들기 칸(기기 하루 10, IP 하루 30) → PIN 실패 칸 → `pin_hmac` 계산.
-3. 한 트랜잭션: 같은 `pin_hmac`·`entry_code`의 만료 행 삭제 → `rooms` INSERT(입장 코드 충돌이면 새 코드로 최대 5번) → `teacher_sessions`(LINK, `token_hash = linkTokenHash`) → 명령 결과 기록. `pin_hmac` 유일 위반 → `E_PIN_TAKEN`.
+3. 같은 `pin_hmac`·뽑은 `entry_code`를 만료 방이 쓰고 있으면 먼저 공통 삭제(`application/deleteRoom.ts`, §7.7: 방송·연결 닫기·AI 중단·메모리 정리)로 비운다(같은 방을 이미 지우는 중이면 그 지우기를 기다린다) → 한 트랜잭션(유일성은 제약이 다시 확인, 코드가 겹치면 다시 뽑음): `rooms` INSERT(입장 코드 충돌이면 새 코드로 최대 5번) → `teacher_sessions`(LINK, `token_hash = linkTokenHash`) → 명령 결과 기록. `pin_hmac` 유일 위반 → `E_PIN_TAKEN`.
 4. 응답 {roomId, entryCode, expiresAt}. 기기는 토큰을 이미 알고 있어 선생님 링크 `https://…/t/{토큰}`을 스스로 만든다. 같은 `commandId`·같은 해시로 다시 보내면 같은 결과다(응답이 사라져도 안전). → T2.
 
 **② 학생 첫 입장 (PRD F-02~F-05)**
@@ -112,9 +112,9 @@ Cloudflare Tunnel (전용 터널 writeessay, 맥미니 연결자 → ICN, 메트
 3. 다른 사람의 변경은 학생 기기의 통신용 문서에 먼저 들어오고, **반영 문**(§6.3)이 열릴 때 편집용 문서와 화면에 반영된다.
 
 **⑥ 제출 (PRD F-11)**
-1. `제출하기` → 기기: 쓰던 입력을 기록 → 그 글의 IndexedDB 기록이 끝나기를 기다림 → 편집 잠금 → outbox에 `doc.submit {docId, stateVector, generation}`을 넣는다(`stateVector` = 기기 통신용 문서의 상태 벡터, `generation` = 그 글의 제출 세대).
-2. 연결돼 있으면 그 문서의 `unsyncedChanges`가 0이 된 뒤 보낸다. 오프라인이면 다시 연결되어 0이 된 뒤 보낸다.
-3. 서버: ① 세대가 지금보다 낮으면 `E_STALE`(이미 다시 열린 뒤 도착한 옛 제출 → 기기는 outbox에서 지움) ② 서버 문서의 상태 벡터가 기기 상태 벡터를 다 포함하지 않으면 `E_SYNC_PENDING`(기기가 잠시 뒤 다시 보냄) ③ 다 포함하면 **한 SQLite 트랜잭션**으로 지금 문서 상태·캐시 저장 + SUBMIT 스냅샷 + 상태 SUBMITTED + 명령 결과 기록 → 그 학생 연결 읽기 전용 → `doc.status` 방송 → `ack`.
+1. `제출하기` → 기기: 쓰던 입력을 기록 → 그 글의 IndexedDB 기록이 끝나기를 기다림 → 편집 잠금 → outbox에 `doc.submit {docId, stateVector, snapshot, generation}`을 넣는다(`snapshot` = 기기 통신용 문서의 상태 벡터 + 삭제 집합 `Y.encodeSnapshot`, `generation` = 그 글의 제출 세대, ADR-056). 기기 저장소에 못 쓴 편집이 남아 있으면 `E_STORAGE_BLOCKED`로 멈춘다.
+2. 연결돼 있으면 그 문서의 `unsyncedChanges`가 0이 된 뒤 보낸다. 오프라인이면 다시 연결되어 0이 된 뒤 보낸다. 그 글이 열려 있지 않으면 대기열이 열어 기기 사본을 올리고 동기화한 뒤 보낸다. 글이 닫히거나 영구 거절되면 항목을 남겨 둔다.
+3. 서버: ① 세대가 지금보다 낮으면 `E_STALE`(이미 다시 열린 뒤 도착한 옛 제출 → 기기는 outbox에서 지움) ② 서버 문서의 스냅숏이 기기 스냅숏을 덮지 않으면(상태 벡터 + 삭제 집합, `protocol/coverage.ts`) `E_SYNC_PENDING`(기기가 잠시 뒤 다시 보냄. 삭제만 남은 경우도) ③ 덮으면 **한 SQLite 트랜잭션**으로 지금 문서 상태·캐시 저장 + SUBMIT 스냅샷 + 상태 SUBMITTED + 명령 결과 기록 → 그 학생 연결 읽기 전용 → `doc.status` 방송 → `ack`.
 4. 기기: `ack` → `제출 완료` + 도장. 교사의 `다시 쓰게 하기`는 세대를 1 올린다(그래서 늦게 온 옛 제출이 다시 잠그지 못한다).
 
 **⑦ AI (PRD F-08, 6장)**: `POST /api/rooms/:roomId/ai` {docId, button, text, meta, commandId}(학생 토큰) → 한도 확인 → AI 스냅샷(서버 문서 기준) → `AiService` → 구조화 결과 JSON 또는 다듬은 글 글자 스트림(`text/plain`).
@@ -167,7 +167,9 @@ interface LocalStorePort {
   appendUpdate(docId: DocId, update: Uint8Array): Promise<void>;
   compact(docId: DocId): Promise<void>;
   outbox: OutboxStore; memory: DeviceMemory; aiResults: KeyValue<AiResultRecord>;
-  purgeExpired(now: number): Promise<void>;
+  setDocMeta(docId: DocId, meta: DocMeta): Promise<void>;
+  purgeExpired(now: number): Promise<number>;
+  purgeRoom(roomId: RoomId, docIds?: DocId[]): Promise<void>;   // 만료·삭제된 방의 기기 사본(ADR-056)
 }
 interface EditorPort { mount(el: HTMLTextAreaElement, mirror: HTMLElement, doc: SyncedDoc, opts: EditorOptions): EditorBinding }
 interface EditorBinding {
@@ -214,7 +216,10 @@ writeessay/
 ├─ PRD.md
 ├─ package.json                workspaces: packages/*, apps/*, tools/*  · 공용 스크립트
 ├─ tsconfig.base.json          strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes
-├─ .prettierrc.json · .editorconfig · .nvmrc(24) · .gitignore(.env*, *.sqlite*, dist, .local)
+├─ .prettierrc.json · .editorconfig · .nvmrc(24) · .npmrc(정확한 판·7일 대기) · .gitignore(.env*, *.sqlite*, dist, .local)
+├─ AGENTS.md · CLAUDE.md        모든 에이전트 공용 작업 지침
+├─ vitest.config.ts            묶음 셋(core·server·web)
+├─ .claude/launch.json         내장 브라우저 미리보기(web-dev 4462, server-dev 4461)
 ├─ docs/                       PRD_REVIEW · decisions · PLAN · USER_DECISIONS · privacy-policy(P5) · runbook(P3·P5) · briefs/(맡길 본문) · archive/
 ├─ packages/core/src/          브라우저·서버 공용
 │  ├─ config.ts                PRD 12.3 전부: 기본값 + 타입 + zod 스키마
@@ -230,7 +235,8 @@ writeessay/
 ├─ apps/web/                   Vite 8 + React 19 PWA
 │  ├─ index.html · vite.config.ts (react, vite-plugin-pwa, 개발 포트 4462, dev 프록시 /api·/ws → 4461)
 │  ├─ public/fonts/pretendard/ 동적 서브셋 woff2 + css (자체 제공)
-│  ├─ scripts/gen-icons.mjs    @phosphor-icons/core → icons.generated.tsx (Duotone, 쓰는 것만)
+│  ├─ scripts/gen-icons.mjs    icon-catalog.mjs + @phosphor-icons/core → src/ui/icons/icons.generated.tsx (Duotone, `--check`)
+│  ├─ dev/index.html           개발 전용 화면 묶음 입구(`/dev/*`). 개발 서버와 `--mode devices` 빌드에만 들어감
 │  └─ src/
 │     ├─ main.tsx · app/(routes.tsx providers.tsx)
 │     ├─ application/          createRoom · enterAsTeacher · registerStartCode · joinRoom · resumeOnDevice
@@ -253,9 +259,11 @@ writeessay/
 │        ├─ screens/student/   Home · CodeSheet · ClassCard · Nickname · GenrePicker · Write/* · ResumeWait
 │        ├─ screens/teacher/   TeacherHome · CreateRoom(시작 코드 칸 포함) · Prep · Dashboard · Drawer · PinEntry
 │        │                     · ConnectionCheck · RoomSettings · NoticePopover
-│        └─ screens/common/    Privacy · Closed · NotFound · DevGallery(개발 전용) · DevEditor(개발 전용)
+│        └─ screens/common/    Privacy · Closed · NotFound
+│     └─ dev/                  main.tsx · DevGallery(`/dev/ui`) · DevEditor(`/dev/editor`) — 개발 전용, adapters를 바로 가져와도 됨
 ├─ apps/server/src/
-│  ├─ index.ts                 시작: 설정 → DB 열기·마이그레이션 → Hono + Hocuspocus → listen → 예약 작업
+│  ├─ index.ts                 프로세스 입구(신호·예외 처리, `--init`)
+│  ├─ server.ts                시작 순서(§7.1)·끝내기 순서를 묶은 `startServer` (시험도 이것으로 띄움)
 │  ├─ config.ts                .env → 설정 (core/config 기본값 위에 덮기, 운영에서 시험용 키 금지)
 │  ├─ http/                    app.ts(미들웨어: 원본 비밀 헤더·요청 ID·봉투·보안 머리) · routes/(rooms join resume
 │  │                           teacher ai export health) · static.ts(캐시 머리)
@@ -264,7 +272,7 @@ writeessay/
 │  │                           · persistence.ts(저장·재시도·내림 막기) · locks.ts(readOnly 바꾸기) · snapshots.ts
 │  ├─ application/             createRoom · joinRoom · resume · pinEnter · submit · reopen · notice · timer
 │  │                           · roomSettings · deleteRoom · aiRequest · exportRoom
-│  ├─ store/                   db.ts(better-sqlite3, WAL) · migrate.ts · migrations/0001_init.sql · repos/*.ts
+│  ├─ store/                   db.ts(better-sqlite3, WAL) · migrate.ts · devSeed.ts(P2-1) · repos/*.ts
 │  ├─ ai/                      port.ts · anthropic.ts · fake.ts · prompts/(base spell feedback direction polish lens)
 │  │                           · schemas.ts · validate.ts · run.ts(재시도·대체·시간 제한·거절)
 │  ├─ jobs/                    retention.ts · timers.ts · presence.ts · rateBuckets.ts
@@ -299,7 +307,7 @@ writeessay/
 | `body` | `Y.Text` | 본문(줄바꿈 `\n`) | 학생·교사 |
 | `title` | `Y.Text` | 제목(선택) | 학생·교사 |
 | `meta` | `Y.Map` | `subtype`, `purposeCustom`, `mood`, `moodCustom`, `tempo`, `cutCount` | 학생 |
-| `memo` | `Y.Map<Y.Text>` | 도움 질문 ID → 메모(같은 학생의 두 기기가 동시에 고칠 수 있어 문자열이 아니라 `Y.Text`) | 학생 |
+| `memo` | `Y.Map<Y.Text>` | 도움 질문 ID → 메모(같은 학생의 두 기기가 동시에 고칠 수 있어 문자열이 아니라 `Y.Text`). `doc.create` 때 서버가 그 글 종류의 모든 질문 ID에 빈 `Y.Text`를 미리 만들고, 이미 있는 칸을 다른 객체로 바꾸는 편집은 거부한다(두 기기가 동시에 처음 만들면 한쪽이 사라지므로, ADR-056) | 학생 |
 
 `genre`·`status`·제출 시각은 문서에 넣지 않는다(서버만 정함). `room:*` 문서는 비어 있고 저장하지 않는다.
 
@@ -334,7 +342,7 @@ type Evt = { t: 'evt'; v: 1; name: EventName; data: unknown; serverNow: number }
 | 이름 | 누가 | args | 결과 |
 |---|---|---|---|
 | `doc.create` | 학생 | {genre, subtype?, purpose?, purposeCustom?} | {docId} |
-| `doc.submit` | 학생 | {docId, stateVector, generation} | {status, submittedAt} / `E_SYNC_PENDING` / `E_STALE` (§2.3 ⑥) |
+| `doc.submit` | 학생 | {docId, stateVector, snapshot?, generation} | {status, submittedAt} / `E_SYNC_PENDING` / `E_STALE` (§2.3 ⑥) |
 | `doc.reopen` | 교사 | {docId} | {status, generation} |
 | `snapshot.list` | 둘 다 | {docId} | [{id, at, reason, author, chars}] |
 | `snapshot.get` | 둘 다 | {docId, snapshotId} | {title, body} |
@@ -365,7 +373,7 @@ type Evt = { t: 'evt'; v: 1; name: EventName; data: unknown; serverNow: number }
 | `tick` | {serverNow} — 5초마다, 기기의 끊김 감지와 시각 보정용(§4.7 대응 5) | 모두 |
 
 - 명령은 `commandId`로 멱등이다. 서버 `commands` 표에 실행 주체·명령 이름·인자 해시와 함께 7일 보관하고, 같은 `commandId`인데 주체나 인자가 다르면 `E_INPUT`. 결과에는 토큰 같은 비밀을 넣지 않는다(토큰은 기기가 만들므로 돌려줄 일이 없음).
-- **글 채널 이벤트**(`doc:*` 제공자의 무상태 메시지): `doc.persisted {stateVector}`(DB 저장 완료), `doc.persistFailed`, `doc.status`(잠금 바뀜). 저장 상태 표시(§6.5)에 쓴다.
+- **글 채널 이벤트**(`doc:*` 제공자의 무상태 메시지, `packages/core/src/protocol/docEvents.ts`): `doc.persisted {stateVector, snapshot}`(base64url, DB 저장 완료. 새로 붙은 글 연결에도 DB의 마지막 저장 표시를 한 번 보냄), `doc.persistFailed {}`, `doc.status {docId, status, at, locked}`(잠금 바뀜), `doc.error {code}`(그 연결의 편집을 받지 않기 시작함, 예: `E_DOC_TOO_LARGE`). 모양은 수업방 이벤트와 같은 `{t:'evt', v:1, name, data, serverNow}`. 저장 상태 표시(§6.5)에 쓴다.
 - 프로토콜 판이 맞지 않으면 `E_VERSION`. 서버는 판 N과 N-1을 받는다.
 
 ### 4.5 저장과 스냅샷
@@ -410,7 +418,7 @@ server.on('upgrade', (req, socket, head) => {
 
 | 훅 | 우리 쓰임 | 주의 |
 |---|---|---|
-| `onAuthenticate({ token, documentName, requestHeaders, requestParameters, connectionConfig, context, socketId })` | 문서마다 인증 메시지를 받은 뒤 불린다. 토큰 확인 → 권한 표(§4.3) → `connectionConfig.readOnly = true/false` → 반환한 객체가 context에 합쳐짐 | 던지면 그 문서만 `authenticationFailed {reason}`, 소켓은 유지 |
+| `onAuthenticate({ token, documentName, requestHeaders, requestParameters, connectionConfig, context, socketId })` | 문서마다 인증 메시지를 받은 뒤 불린다. 토큰 확인 → 권한 표(§4.3) → `connectionConfig.readOnly = true/false` → 반환한 객체가 context에 합쳐짐 | 던지면 그 문서만 `authenticationFailed {reason}`, 소켓은 유지. **`reason`은 던진 오류의 `reason` 속성이고 없으면 `permission-denied`**(4.8.0 소스·P1 시험 확인) → `hookGuards`가 `AppError`에 `reason = code`를 붙인다 |
 | `connected({ …, connection })` | 접속 상태 갱신 | |
 | `onLoadDocument({ document, documentName, context })` | SQLite에서 `ydoc_state`를 읽어 `Y.Doc`/`Uint8Array` 반환. `room:*`은 빈 문서 | 던지면 그 문서 인증 실패 |
 | `onChange({ update, document, context, transactionOrigin })` | 보낸 연결의 context로 학생·교사 구분 → 요약 갱신, 교사 첫 입력 스냅샷 | **기다려 주지 않는 훅이라 던지면 프로세스가 죽는다** |
@@ -420,7 +428,7 @@ server.on('upgrade', (req, socket, head) => {
 | `beforeUnloadDocument` | 저장 실패한 문서는 던져서 내림을 막는다 | |
 | `beforeHandleMessage` | **쓰지 않는다**: 던지면 그 문서 연결이 닫히고, 업데이트 하나만 거부하는 방법은 없다 | |
 
-**연결 뒤 읽기 전용 바꾸기 [실행]** — `hocuspocus.documents.get(name)?.getConnections()`로 그 문서 연결을 돌며 `connection.readOnly`를 바꾸면 다음 메시지부터 적용된다. 잠긴 동안의 편집은 서버에 적용되지 않고 기기 문서에 남는다. **잠금을 풀면 기기가 `provider.forceSync()`를 불러야** 그 편집이 합쳐진다(또는 재연결). 기기 쪽 `authorizedScope`는 바뀌지 않으므로 잠금 상태는 우리 `doc.status` 이벤트로 알린다.
+**연결 뒤 읽기 전용 바꾸기 [실행, P2-1 시험 `realtime.test.ts` 실험 ②]** — `hocuspocus.documents.get(name)?.getConnections()`로 그 문서 연결을 돌며 `connection.readOnly`를 바꾸면 다음 메시지부터 적용된다. 잠긴 동안의 편집은 서버에 적용되지 않고 기기 문서에 남는다. **잠금을 풀면 기기가 `provider.forceSync()`를 불러야** 그 편집이 합쳐진다(또는 재연결). 기기 쪽 `authorizedScope`는 바뀌지 않으므로 잠금 상태는 우리 `doc.status` 이벤트로 알린다.
 
 **무상태 메시지** — 서버 `connection.sendStateless(문자열)`, `document.broadcastStateless(문자열, 거르개)`(거르개가 없으면 보낸 쪽도 받음). 기기 `provider.sendStateless(문자열)`, `provider.on('stateless', ({ payload }) => …)`. 크기 제한은 `ws`의 `maxPayload`(1 MiB로 줄임).
 
@@ -451,12 +459,12 @@ provider.attach();   // 소켓을 함께 쓰면 생성자가 붙이지 않는다
    - 프로세스 차원에서도 `unhandledRejection`·`uncaughtException`을 기록하고, 후자는 저장을 시도한 뒤 끝낸다(launchd가 다시 띄움).
 2. `onStoreDocument` 안에서 3번까지 다시 시도(0.5·1·2초). 그래도 실패하면 그 문서를 "저장 못 함" 목록에 넣고, `beforeUnloadDocument`에서 내림을 막고, 30초마다 다시 시도하며 `/internal/health`와 하트비트를 실패로 만든다(메일). 기기 사본이 있어 다시 연결되면 Yjs가 채운다.
 3. 잠금(제출·닫힘): 서버가 연결의 `readOnly`를 바꾸고 `doc.status`를 보낸다. 기기는 그 글 편집을 막고, 잠긴 동안 `unsyncedChanges > 0`이면 "선생님께 보내지 못한 글이 여기에 있어요"를 보인다(PRD F-11). 잠금이 풀리면 `forceSync()`. 재연결 때는 `onAuthenticate`가 DB 상태로 `readOnly`를 다시 정한다.
-4. 문서 하나가 `close`·`authenticationFailed`를 받으면 그 제공자를 `detach()`하고, 토큰 문제면 `E_AUTH` 처리, 아니면 다시 `attach()`한다(서버가 잊은 문서로 메시지가 쌓이지 않게).
-5. 하트비트는 우리가 넣는다: 서버 웹소켓 ping 5초 + pong 없으면 terminate(서버 쪽 감지 약 10초), `room:*` 채널로 5초마다 `tick` 이벤트(`serverNow` 포함) + 기기 `messageReconnectTimeout` 12초(기기 쪽 감지).
+4. 문서 하나가 `authenticationFailed`를 받으면: 이유가 우리 오류 코드(`E_AUTH`·`E_FORBIDDEN` 등)면 그 제공자를 떼고 `failure`로 알린다. 그 밖(서버 내부 오류의 `permission-denied`)과, 소켓은 살아 있는데 서버가 이 글 연결만 닫은 `close`면 1초 뒤 **`socket.attach(provider)`로 인증만 다시 보낸다**. `provider.detach()`를 쓰지 않는다: 떼면 닫기 메시지가 먼저 가고, 서버는 이미 그 글을 잊었으므로 그 메시지가 새로 붙은 연결을 다시 닫는다(4.8.0 소스·P2-2 통합 시험으로 확인).
+5. 하트비트는 우리가 넣는다: 서버 웹소켓 ping 5초 + pong 없으면 terminate(서버 쪽 감지 약 10초). **같은 간격으로 응용 Ping(한 바이트 9)도 보낸다**: 브라우저 코드는 웹소켓 ping을 볼 수 없어서, 이것이 없으면 조용한 글 연결이 기기 `messageReconnectTimeout`(12초)마다 끊긴다(P2 시험으로 확인). 제공자는 Pong(한 바이트 10)으로 답하는데 Hocuspocus 4.8은 이것을 문서 메시지로 읽다 실패해 연결을 닫으므로, `upgrade.ts`가 가로채 `touch()`만 하고 넘기지 않는다. `room:*` 채널의 5초 `tick`(`serverNow`)은 시각 보정용으로 남긴다.
 6. 학생의 `room:*` 연결은 읽기 전용으로 둔다(채널 문서에 쓸 일이 없음). 명령은 무상태 메시지라 그대로 가고, 권한은 `onStateless`에서 본다.
 7. 학생 IP는 context 초기값으로 넘긴다(v4에는 `request.socket.remoteAddress`가 없음).
 8. `handleConnection`에 Fetch `Request`를 넘긴다(`requestHeaders.get()`을 쓰기 위해).
-9. **적용 전 검사**: 학생 연결의 `doc:*` 업데이트는 `beforeHandleMessage`에서 서버 문서 사본에 먼저 적용해 본다. 본문 `DOC_MAX_CHARS`, 제목 `DOC_TITLE_MAX_CHARS`, 메모 칸 `MEMO_MAX_CHARS`를 넘거나 정해진 키(`body` `title` `meta` `memo`)·타입이 아닌 것이 생기면 **던지지 않고** 그 연결을 읽기 전용으로 바꿔 그 메시지를 버리고(던지면 문서 연결이 닫혀 재연결 때 같은 업데이트가 반복된다) `E_DOC_TOO_LARGE`를 알린다. 글이 작아(수십 KB) 사본 비용이 작다. 이 방식(훅 안에서 `readOnly`를 바꾸면 그 메시지부터 거부되는지)은 **추정**이라 P2-1에서 실험으로 확인하고, 안 되면 기기 쪽 제한 + 적용 뒤 검사(넘으면 읽기 전용·교사 알림)로 간다.
+9. **적용 전 검사**: 학생 연결의 `doc:*` 업데이트는 `beforeHandleMessage`에서 서버 문서 사본에 먼저 적용해 본다. 본문 `DOC_MAX_CHARS`, 제목 `DOC_TITLE_MAX_CHARS`, 메모 칸 `MEMO_MAX_CHARS`를 넘거나 정해진 키(`body` `title` `meta` `memo`)·타입이 아닌 것이 생기면 **던지지 않고** 그 연결을 읽기 전용으로 바꿔 그 메시지를 버리고(던지면 문서 연결이 닫혀 재연결 때 같은 업데이트가 반복된다) `E_DOC_TOO_LARGE`를 알린다. 글이 작아(수십 KB) 사본 비용이 작다. 이 방식(훅 안에서 `readOnly`를 바꾸면 그 메시지부터 거부되는지)은 **P2-1에서 확인했다**: Hocuspocus 4.8은 `beforeHandleMessage`를 기다린 뒤 메시지를 적용하면서 `connection.readOnly`를 본다(소스), 시험 `realtime.test.ts` 실험 ①에서 서버·다른 기기에 들어가지 않고 보낸 기기 사본에만 남았다. 구현은 `realtime/precheck.ts`: 글마다 그림자 사본(서버 문서를 따라 받음)에 먼저 적용해 보고, 위반이면 읽기 전용 + `doc.error` + 그림자 다시 만들기.
 10. 웹소켓·업그레이드 소켓·`WebSocketServer`의 `error`를 모두 받는다(위 배선). 잘못된 프레임·크기 초과 회귀 시험을 둔다(§10.4).
 
 ---
@@ -475,14 +483,14 @@ PRAGMA secure_delete = ON;   -- 지운 행의 내용을 0으로 덮는다 (30일
 
 - 파일 위치: `/Users/wesvc/writeessay-server/data/geulbang.sqlite`(배포가 건드리지 않는 폴더, §15). **이 맥미니는 Time Machine(`MacMini_Backup`)이 1시간마다 돌고 제외 경로가 없다**(2026-11-10 확인). 서버 루트를 반드시 백업에서 제외한다(PRD F-24 "백업하지 않음").
 - 만료 삭제 뒤 `PRAGMA wal_checkpoint(TRUNCATE)`로 WAL 파일에 남은 옛 페이지까지 비운다.
-- 마이그레이션: `store/migrations/NNNN_이름.sql`. 시작할 때 한 트랜잭션으로 적용하고 `schema_migrations`에 파일 SHA-256을 남긴다. 적용된 파일은 고치지 않는다(쌤유니버스 `scripts/migrate.mjs`와 같은 규칙).
+- 마이그레이션: `apps/server/migrations/NNNN_이름.sql`(src 밖이라 `src`·`dist` 어디서 돌아도 같은 경로, 빌드 때 복사가 필요 없다). 시작할 때 파일마다 한 트랜잭션으로 적용하고 `schema_migrations`(마이그레이션 도구가 만듦)에 파일 SHA-256을 남긴다. 적용된 파일이 바뀌면 시작을 거부하고, DB에 이 릴리스보다 새 판이 있으면(되돌리기 뒤) 막지 않고 기록한다(§15.4). 적용된 파일은 고치지 않는다(쌤유니버스 `scripts/migrate.mjs`와 같은 규칙).
 
 ### 5.2 스키마 (`0001_init.sql`)
 
 시각은 모두 UTC 밀리초 정수, ID는 UUID 문자열. 수업방을 지우면 외래키 `ON DELETE CASCADE`로 그 방의 모든 행이 함께 사라진다.
 
 ```sql
-CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, sha256 TEXT NOT NULL, applied_at INTEGER NOT NULL);
+-- schema_migrations(version, sha256, applied_at)은 마이그레이션 도구가 만든다(0001에 넣지 않음).
 
 -- 길이·개수 같은 바뀔 수 있는 값은 SQL CHECK에 넣지 않는다(PRD 0.2-5 [고정] "설정 한 곳").
 -- 그런 검사는 config 값으로 만든 zod 스키마가 한다. SQL CHECK는 상태값·불리언 같은 불변식만.
@@ -735,13 +743,14 @@ CREATE TABLE personal_keys (                           -- [v1.1]
 
 | 파일 | 하는 일 |
 |---|---|
-| `binding.ts` | 입력칸(`textarea`와 한 줄 `input` 둘 다)과 편집용 `Y.Text`를 잇는다 |
-| `gate.ts` | 반영 문 상태 기계. **글 하나에 하나**: 제목·본문·메모 칸 바인딩이 모두 이 조정자에 입력 상태를 알리고, 조정자가 문서 전체 반영을 정한다 |
-| `diagnostics.ts` | 진단 모드(§10.7): 입력 이벤트·값·선택을 기기에만 기록, 파일로 내려받기 |
-| `diffApply.ts` | 지난 값 → 지금 값 차이(커서 힌트) / 원격 반영 때 바뀐 범위만 고치기 |
-| `mirror.ts` · `caret.ts` | 입력칸 뒤 거울 층(형광, 원격 커서, 이름표), 커서 좌표 |
-| `undo.ts` | `Y.UndoManager`(LOCAL 출처만) + 단축키·`beforeinput` 가로채기 |
-| `keys.ts` | 조합 중 Enter·Backspace를 건드리지 않는 키 처리 |
+| `editor.ts` | 편집기 포트 구현(`mountEditor`): 두 문서 중계, 반영(flush) 1~8번, 앱이 하는 변경, 되돌리기(`Y.UndoManager`, LOCAL만), 원격 커서 발행·그리기 |
+| `field.ts` | 입력칸 하나(`textarea`·한 줄 `input`)와 편집용 `Y.Text` 하나: 입력 상태(조합·마지막 활동·커서 이동·초점), 내 입력 기록, 바뀐 범위만 `setRangeText` |
+| `gate.ts` | 반영 문 상태 기계. **글 하나에 하나**: 제목·본문·메모 칸 바인딩이 모두 이 조정자에 입력 상태를 알리고, 조정자가 문서 전체 반영을 정한다. 판단(`decide`)은 순수 함수 |
+| `diagnostics.ts` | 진단 모드(§10.7): 입력 이벤트·값·선택·반영 문 판단을 기기에만 기록, 파일로 내려받기 |
+| `mirror.ts` · `mirror.css` | 입력칸 뒤 거울 층(형광, 원격 커서) |
+| `keys.ts` | 되돌리기 키·`beforeinput` 가로채기(조합 중에는 무시). Enter·Backspace는 건드리지 않는다 |
+| `origins.ts` | 출처 표시 LOCAL·FROM_VIEW·FROM_NET |
+| (차이 계산) | `@geulbang/core/text`의 `diffForInput`·`outerChangedRange`(P1-5) |
 
 **두 문서 잇기**
 
@@ -818,8 +827,8 @@ check(): 원격 대기가 있으면 canFlush를 확인해 flush. 아니면 남�
 
 - `socket.ts`: 기기마다 `HocuspocusProviderWebsocket` 하나(`maxDelay: 15000`, 흔들기 켬, `messageReconnectTimeout` 12초).
 - `docProvider.ts`: 문서마다 `HocuspocusProvider`(같은 소켓, 통신용 Y.Doc, 인증 값 §4.1) + **`attach()`**. 기기 저장소에서 먼저 불러온 상태를 통신용 문서에 넣은 뒤 붙인다(오프라인에서도 바로 쓰기). `authenticationFailed`·`close`면 `detach()` 뒤 처리(§4.7 대응 4). `doc.status`로 잠금이 풀리면 `forceSync()`.
-- 저장 상태(PRD F-09) 계산: 연결 안 됨 → `여기에만 저장` / 연결됨 + `unsyncedChanges > 0` → `보내는 중` / 연결됨 + `unsyncedChanges == 0` + 서버가 보낸 `doc.persisted`의 상태 벡터가 기기 상태 벡터를 다 포함 → `저장됨` / 그 사이(서버가 받았지만 아직 DB에 쓰기 전, 보통 2초) → `보내는 중`. `doc.persistFailed`를 받으면 `보내는 중`으로 두고 기기 사본을 지우지 않는다. 잠긴 글이면 저장 상태 대신 `제출 완료`(PRD F-11)를 보이고, 잠긴 동안 `unsyncedChanges > 0`이면 "선생님께 보내지 못한 글이 여기에 있어요" 띠.
-- `roomChannel.ts`: `room:*` 제공자의 무상태 메시지로 명령을 보내고 `ack`를 `COMMAND_ACK_TIMEOUT_MS`(10초) 기다린다. 이벤트는 이름별로 나눠 구독자에게 준다. `serverNow`로 시각 차이를 갱신한다.
+- 저장 상태(PRD F-09) 계산: 연결 안 됨 → `여기에만 저장` / 연결됨 + `unsyncedChanges > 0` → `보내는 중` / 연결됨 + `unsyncedChanges == 0` + 서버가 보낸 `doc.persisted`의 스냅숏이 기기 스냅숏을 덮음(삭제 포함) → `저장됨` / 그 사이(서버가 받았지만 아직 DB에 쓰기 전, 보통 2초) → `보내는 중`. `doc.persistFailed`를 받으면 `보내는 중`으로 두고 기기 사본을 지우지 않는다. 잠긴 글이면 저장 상태 대신 `제출 완료`(PRD F-11)를 보이고, 잠긴 동안 `unsyncedChanges > 0`이면 "선생님께 보내지 못한 글이 여기에 있어요" 띠.
+- `roomChannel.ts`: `room:*` 제공자의 무상태 메시지로 명령을 보내고 `ack`를 `COMMAND_ACK_TIMEOUT_MS`(10초) 기다린다. 우리 오류 코드가 아닌 인증 거부(`permission-denied`)와 소켓은 살아 있는데 방 연결만 닫힌 경우는 잠시 뒤 다시 인증한다(§4.7 대응 4, 횟수 제한). 이벤트는 이름별로 나눠 구독자에게 준다. `serverNow`로 시각 차이를 갱신한다.
 - `outbox.ts`: 오프라인에서도 의미가 있는 명령(`doc.submit`)만 넣는다. 그 문서의 동기화가 끝난 뒤 순서대로 보내고, `ack`가 오면 지운다. 나머지 명령은 오프라인이면 버튼을 흐리게 한다.
 
 ### 6.6 PWA (`vite-plugin-pwa`)
@@ -863,14 +872,15 @@ check(): 원격 대기가 있으면 canFlush를 확인해 flush. 아니면 남�
 
 | 메서드·경로 | 인증 | 속도 칸 | 요청 → `data` |
 |---|---|---|---|
-| `POST /api/rooms` | `X-Start-Code` | pin_*(시작 코드 실패도), room_create_* | {className, title, schoolName?, showSchool, genres, aiButtons, pin, linkTokenHash, commandId} → {roomId, entryCode, expiresAt} |
-| `GET /api/rooms/by-code/:code` | — | code_lookup_* | → {roomId, className, title, schoolName?, status, expiresAt, policyVersion, genres} |
+| `POST /api/rooms` | `X-Start-Code` | pin_*(시작 코드 실패도), room_create_* | {className, title, schoolName?, showSchool, genres, aiButtons, pin, linkTokenHash, deviceId, commandId} → {roomId, entryCode, expiresAt} (`deviceId`는 기기당 만들기 칸, ADR-056) |
+| `GET /api/rooms/by-code/:code` | — (선택 머리 `X-Device-Id`: 기기당 조회 칸) | code_lookup_* | → {roomId, className, title, schoolName?, status, expiresAt, policyVersion, genres} |
 | `POST /api/rooms/:roomId/join` | — | code_lookup_* | {nickname, consentVersion, deviceId, deviceTokenHash, commandId} → {participantId, nickname}. 인원이 `ROOM_MAX_PARTICIPANTS`면 `E_ROOM_FULL` |
 | `POST /api/rooms/:roomId/resume-requests` | — | code_lookup_* | {nickname, deviceId, deviceTokenHash, commandId} → {requestId} |
 | `GET /api/rooms/:roomId/resume-requests/:id?wait=20` | Bearer(새 기기 토큰) | — | → {status} (허용되면 그 토큰이 바로 기기 토큰이 됨) |
 | `DELETE /api/rooms/:roomId/resume-requests/:id` | Bearer(새 기기 토큰) | — | → {status: 'CANCELLED'} |
-| `POST /api/rooms/:roomId/ai` | 학생 Bearer | (AI 예약, §8.2) | {docId, button, text, meta, commandId} → 구조화 {result, receivedAt, range} / 다듬은 글 `application/x-ndjson` 스트림(§8.3) |
+| `POST /api/rooms/:roomId/ai` | 학생 Bearer | (AI 예약, §8.2) | {docId, button, text, range, meta{helpNotes[{questionId, note}], mood?, tempo?}, commandId} → 구조화 {result, receivedAt, range} / 다듬은 글 `application/x-ndjson` 스트림(§8.3) |
 | `POST /api/teacher/pin` | — | pin_* | {pin, deviceId, sessionTokenHash, commandId} → {roomId} (기기가 만든 세션 토큰이 교사 토큰이 됨) |
+| `GET /api/teacher/session` | 교사 Bearer | — | → {roomId} (선생님 링크를 다른 기기에서 열 때 토큰만으로 방을 찾는다, ADR-056) |
 | `GET /api/teacher/rooms/:roomId` | 교사 Bearer | — | → {room, entryCode, shortUrl, expiresAt} |
 | `GET /api/teacher/rooms/:roomId/pin` | 교사 Bearer | — | → {pin} |
 | `GET /api/teacher/rooms/:roomId/export?scope=submitted\|all` | 교사 Bearer | — | → {room, docs[{nickname, genre, subtype, purpose, title, body, status, submittedAt, charCount}]} |
@@ -1129,7 +1139,7 @@ tools/eval/
 
 ### 9.3 그림 만들기 (`tools/art/`, PRD 8.7·8.8)
 
-1. **스타일 시트 글** `tools/art/style.md`: PRD 8.8의 고정 항목(선 코코아 #4A3B32 한 굵기 6~8px@1024, 토큰 색만, 평면 채색 + 한 단계 음영 + 바닥 수채 번짐 한 겹, 정면·3/4 측면, 1.5등신, 배경 투명, 그림 안 글자 없음, 실존 작가 흉내 금지)을 생성 지시문 머리로 쓴다.
+1. **스타일 시트 글** `tools/art/style.md`: PRD 8.8의 고정 항목(색연필 스케치 화풍 ADR-055: 가는 코코아 색연필 선 3~5px@1024·기본 얼굴만 6~8px, 토큰 색 근처 옅은 색연필 채색, 바닥 그림자 한 겹, 정면·3/4 측면, 1.5등신, 배경 투명, 그림 안 글자 없음, 실존 작가 흉내 금지)을 생성 지시문 머리로 쓴다.
 2. **캐릭터 시트**(X, Codex 이미지 생성): 몽땅연필 고슴도치 글벗, 표정 5개 + 기본 얼굴, 1024px. → **U-17 승인**. 고치기 요청은 최대 3번까지 같은 시트에서.
 3. **나머지 그림 2~7**(X): 승인된 시트를 기준 그림으로 붙여 생성.
 4. **후처리** `tools/art/process.mjs`(X): 잘라내기 → 가장자리 반투명 번짐 제거(알파 문턱값) → 평면 채색 영역을 토큰 색에 맞춤 → 1×·2× WebP(품질 85) → 크기 검사(첫 화면 합계 80KB).
@@ -1304,7 +1314,7 @@ P1 ──▶ P2 ──▶ P3 ──────────────▶ P4 �
 | P1-2 | 패키지 설치(ADR-051 판표), `package-lock.json`, Playwright Chromium·WebKit | C | 새 폴더에서 `npm ci` 재현 | P1-1 |
 | P1-3 | `core/config.ts`(PRD 12.3 전부: 기본값·타입·zod), `core/errors.ts`(12.4 전부) | C | `prd-sync` 통과 | P1-1 |
 | P1-4 | `tools/checks/*` 다섯 개(§10.1: `layers` `forbidden` `bundle` `free-plan` `prd-sync`) | A | 일부러 어긴 견본에서 실패, 지금 저장소에서 통과 | P1-2·P1-3 |
-| P1-5 | `core/text/hangul.ts`·`diff.ts`·`hash.ts`와 시험(성질 시험 포함) | X | `npm run test -w packages/core` 통과 | P1-2 |
+| P1-5 | `core/text/hangul.ts`·`diff.ts`·`hash.ts`와 시험(성질 시험 포함) — 2026-11-11 Codex가 다른 작업으로 바빠 C가 직접 함(편집기의 바로 앞 단계) | C | `npm run test -w packages/core` 통과 | P1-2 |
 | P1-6 | 서버 뼈대: 운영 설정(§13.1, `DEV_DOCS_ENABLED` 포함) → `store/db.ts`·`migrate.ts`·`0001_init.sql`(§5.2 전부) → `http/app.ts`(요청 ID·봉투·보안 머리)·`/api/health` → `realtime/upgrade.ts`·`hookGuards.ts`·`hocuspocus.ts` → 시작 순서(§7.1 1~5) → 정적 파일(`dist`와 캐시 머리) → `log.ts` | C | `curl /api/health` 200, 웹소켓 연결, 잘못된 프레임 회귀 시험 | P1-2·P1-3 |
 | P1-7 | 웹 뼈대: 경로는 `/`(빈 홈)·`/dev/ui`·`/dev/editor`만(개발 전용 경로는 운영 빌드에서 빠지는 별도 진입점), `tokens.css` 초안(§9.1), Pretendard 동적 서브셋 자체 제공, `gen-icons.mjs`, 개발 프록시(`/api`·`/ws` → 4461) | C | 개발 서버에서 토큰 견본 | P1-2 |
 | P1-8 | `tools/art/style.md`(PRD 8.8) → 글벗 캐릭터 시트 1차(표정 5 + 기본 얼굴, 후보 2~3장) | X(이미지) | `.local/art/`에 후보 → **U-17 1차 의견** | P0 (코드와 무관해 가장 먼저 보낸다) |
@@ -1355,7 +1365,7 @@ P1 ──▶ P2 ──▶ P3 ──────────────▶ P4 �
 | P3-5 | v0 범위 서버 통합 시험(§10.4 중 입장·인증·권한 표·두 기기 병합·재시작 뒤 같은 글·스냅샷) | X | 통과 | P3-3 |
 | P3-6 | `tokens.css` 확정, `base.css`, 종이 결·손그림 테두리 생성기(§9.3-5·6, U-17 1차 의견의 화풍 반영) | C | `/dev/ui` | P1-7, U-17 1차 |
 | P3-7 | 부품 마무리 + `/dev/ui` 상태 견본 | A | 금지 검사 통과 | P2-10·P3-6 |
-| P3-8 | 캐릭터 시트 다듬기(최대 3번) → 그림 2~7, `tools/art/process.mjs` | X | PRD 8.8 검수, **U-17 승인** | P1-8 |
+| P3-8 | 캐릭터 시트 다듬기(최대 3번) → 그림 2~7, `tools/art/process.mjs` | A(Codex 보류) | PRD 8.8 검수, **U-17 승인**. 2026-11-11: P3-8a 시트 확정, P3-8b(2~7·후처리·`ui/art`) 진행 | P1-8 |
 | P3-9 | 시안 3화면 배치(홈·쓰기·대시보드) | A | 금지 검사 통과 | P3-7 |
 | P3-10 | 시안 결합: T1 최소 만들기 → T2 QR → S0 홈·코드 시트 → S1·S3·S4·S5 → T3 타일·T4 서랍, PWA 껍데기(§6.6: 미리 저장·오프라인 새로고침·수동 업데이트) | C | 실제로 동작하는 v0 | P3-3·P3-4·P3-9 |
 | P3-11 | 디자인 독립 판정(만든 이와 다른 쪽: PRD 8.10 금지 목록·누를 곳·그림 일관성) | C-sub | 지적 처리 → **U-18** | P3-8·P3-10 |
@@ -1500,6 +1510,9 @@ P1 ──▶ P2 ──▶ P3 ──────────────▶ P4 �
 
 ### 12.1 나누는 원칙
 
+> **2026-11-11 사용자 지시: Codex 사용을 잠시 보류한다.** 아래 X(Codex) 몫(시험 작성·독립 검토·보안 모듈·운영 스크립트·평가·부하 도구)은 그동안 **Antigravity**가 맡는다. 보통 일은 `standard`(gemini argon), 복잡한 일·독립 검토는 `deep`(gemini carbon). Claude는 지휘·통합·확인에 집중하고 직접 작업량을 줄인다. 그림 생성(P3-8)은 Antigravity가 할 수 있는지 확인 뒤 정한다. 검토자는 만든 이와 다르게 원칙은 그대로: Antigravity가 만든 것은 Claude 서브에이전트나 다른 Antigravity 실행(다른 등급)이 검토한다.
+
+
 - **Claude**: 틀리면 다 무너지는 곳(편집기 바인딩·반영 문, 동기화 서버 훅·권한, 프로토콜, AI 흐름), 결합, 최종 확인. 다른 에이전트가 돌려준 결과는 diff와 시험 실행으로 직접 확인하고 받아들인다.
 - **Codex**: 경계가 뚜렷한 구현 조각(보안·속도 제한·내려받기·평가 도구·부하 도구·운영 스크립트·그림 후처리), 시험 작성, **이미지 생성**(캐릭터·그림), 독립 코드 검토.
 - **Antigravity**: 부품과 화면 배치(정해 준 파일만), 정적 검사 도구(P1-4), 평가 글 초안(P4-16), 문구·프롬프트 두 번째 의견, 처리방침 초안.
@@ -1511,11 +1524,11 @@ P1 ──▶ P2 ──▶ P3 ──────────────▶ P4 �
 | 범위 | 주인 | 다른 에이전트 |
 |---|---|---|
 | `packages/core/src/{config,errors,genres}.ts`, `copy/`, `domain/*`, `protocol/*`, `api/*` | C | X는 같은 폴더 `*.test.ts`만(P3-2) |
-| `packages/core/src/text/*`, `structure.ts` | X (P1-5·P3-2) | C는 검토 |
+| `packages/core/src/text/*`, `structure.ts` | C (P1-5 완료) · X (P3-2 `structure.ts`, P4-2 `locate.ts`) | 서로 검토 |
 | `apps/web/src/adapters/*`, `application/*`, `ports/*`, `state/*` | C | X는 맡은 작업의 `*.test.ts`와 `tests/fixtures/`만(P2-5). 예외: `application/{exportStudent,exportAll}.ts`는 X(P4-14), 교사용 `application/*` 7개는 C-sub(P4-13) |
 | `apps/web/src/ui/components/*`, `ui/screens/**`의 배치·스타일 | A (P2-10·P3-7·P3-9·P4-10·P4-11) | C·C-sub는 A가 끝낸 뒤 결합(배치 파일에 훅 연결만, P3-10·P4-12·P4-13) |
 | `apps/web/src/ui/tokens.css`, `base.css`, `copy` | C | A는 의견만 |
-| `apps/web/src/ui/art/*`, `tools/art/{style.md,process.mjs}` | X (P1-8·P3-8) | `frames.mjs`·`grain.mjs`는 C(P3-6) |
+| `apps/web/src/ui/art/*`, `tools/art/{style.md,process.mjs,manifest.json}` | A (P3-8, Codex 보류 동안. 원래 X) | `frames.mjs`·`grain.mjs`는 C(P3-6) |
 | `apps/server/src/{realtime,application,ai}/*` | C | X는 검토(P2-7·P5-5) |
 | `apps/server/src/security/*`, `jobs/{rateBuckets,retention}.ts`, `http/routes/export.ts` | X (P2-11·P4-8) | C는 검토. 앱·라우터 연결(`http/app.ts`·`routes/*`)과 `store/repos/*`는 C |
 | `apps/server/test/**`(통합 시험), `tests/e2e/*`, `tools/{load,eval}/*.ts`, `ops/*` | X | C는 검토 |
@@ -1556,7 +1569,7 @@ cwd: /Users/bodyking/Desktop/Architecture/writeessay
 
 - `packages/core/src/config.ts`가 PRD 12.3의 키와 기본값을 그대로 가진다(`prd-sync` 검사로 일치 확인).
 - 서버는 환경 변수로 덮는다. 환경 변수 이름은 설정 키와 같다(예: `ROOM_TTL_DAYS=30`). 숫자·목록은 zod로 바꿔 읽고, 틀리면 시작을 거부한다.
-- 제품 설정이 아닌 **운영 환경 변수**는 따로 둔다: `PORT`(4460), `HOST`(127.0.0.1), `DB_PATH`, `PUBLIC_ORIGIN`, `LOG_LEVEL`, `NODE_ENV`, `IME_DIAGNOSTICS_ENABLED`(실기기 시험 때만 true), `DEV_DOCS_ENABLED`(개발 전용 `dev` 자격과 `/dev/editor`용, P2). 운영(`NODE_ENV=production`)에서 `DEV_DOCS_ENABLED`가 켜져 있으면 시작을 거부한다. 이것들은 `config.ts`가 아니라 `apps/server/src/config.ts`의 운영 스키마에 있다.
+- 제품 설정이 아닌 **운영 환경 변수**는 따로 둔다: `PORT`(4460), `HOST`(127.0.0.1), `DB_PATH`, `PUBLIC_ORIGIN`, `LOG_LEVEL`, `NODE_ENV`, `RELEASE_ID`(배포가 넣는 릴리스 이름, 상태 확인에 보임), `IME_DIAGNOSTICS_ENABLED`(실기기 시험 때만 true), `DEV_DOCS_ENABLED`(개발 전용 `dev` 자격과 `/dev/editor`용, P2). 운영(`NODE_ENV=production`)에서 `DEV_DOCS_ENABLED`가 켜져 있으면 시작을 거부한다. 이것들은 `config.ts`가 아니라 `apps/server/src/config.ts`의 운영 스키마에 있다.
 - 기기가 알아야 하는 값(반영 문 수치, 상태 판정 기준, AI 최소 글자, 쿨다운, 글자 크기, 알림 시간 등)은 `hello.config`로 보내고, 번들 기본값은 연결 전 대비용이다. 서버 설정을 바꾸면 앱을 다시 빌드하지 않아도 기기 동작이 바뀐다.
 - 수업방마다 바뀌는 값(`genres`, `aiButtons`, `sound`, `undoLevel`)은 `rooms.settings_json`.
 - 시험·개발 전용 키: `ROOM_TTL_MINUTES_OVERRIDE`, `AI_PROVIDER=fake`, `SNAPSHOT_INTERVAL_SEC` 축소. 운영(`NODE_ENV=production`)에서 있으면 시작을 거부한다.
@@ -1572,6 +1585,7 @@ cwd: /Users/bodyking/Desktop/Architecture/writeessay
 | `ID_HMAC_KEY` | IP·기기 ID의 속도 칸 키 | 언제든(칸이 초기화될 뿐) |
 | `PERSONAL_HMAC_KEY` | 개인 모드 키 `[v1.1]` | 바꾸면 개인 모드 글을 못 찾는다 |
 
+- 운영이 아닐 때 비어 있는 HMAC·암호화 키는 그 실행만 쓰는 무작위 값으로 채우고 이름만 기록한다(값은 남기지 않음). 운영에서 빠지면 시작을 거부한다(`apps/server/src/config.ts`).
 - 파일은 `/Users/wesvc/writeessay-server/secrets/app.env`(권한 600, 서비스 계정 소유). launchd 설정 파일(권한 644)에는 비밀값을 넣지 않고 `node --env-file`로 읽는다. 저장소에는 `.env.example`(값 없음)만 둔다.
 - 원본 보호 비밀 값(`x-we-origin-auth`)은 서버에 두지 않는다. CloudFront 원본 머리와 Cloudflare WAF 규칙 두 곳에만 넣고, 소유자 전용 폴더에 보관한다(§15).
 

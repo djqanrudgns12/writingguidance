@@ -1,0 +1,40 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+}
+
+.label {
+  align-self: flex-start;
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+/* 칸 묶음은 가운데. 칸 크기는 부품이 컨테이너 폭으로 정한다. */
+.slots {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.hint,
+.error {
+  align-self: flex-start;
+  margin: 0;
+  font-size: var(--fs-small);
+}
+
+.hint {
+  color: var(--ink-sub);
+}
+
+.error {
+  color: var(--rose-ink);
+  font-weight: var(--fw-title);
+}
+
+.keypad {
+  margin-top: var(--sp-2);
+}

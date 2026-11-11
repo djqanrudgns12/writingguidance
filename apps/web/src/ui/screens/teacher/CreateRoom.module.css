@@ -1,0 +1,53 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+/* 큰 카드 여러 장 대신 옅은 선 한 줄로 묶음을 나눈다(PRD 8.10 똑같은 카드 나열 금지). */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding-top: var(--sp-6);
+  border-top: var(--stroke-thin) solid var(--line);
+}
+
+.section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+
+.schoolRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: end;
+}
+
+.schoolSwitch {
+  min-height: 52px;
+}
+
+.pinPair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-6);
+}
+
+@media (min-width: 600px) {
+  .twoCol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .schoolRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sp-4);
+  }
+}

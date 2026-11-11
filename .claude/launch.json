@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@geulbang/web"],
+      "port": 4462
+    },
+    {
+      "name": "server-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@geulbang/server"],
+      "port": 4461
+    }
+  ]
+}

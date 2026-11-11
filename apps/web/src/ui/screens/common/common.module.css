@@ -1,0 +1,88 @@
+/* 공통 상태 화면(PRD 7.2) */
+.page {
+  min-height: var(--screen-min-h, 100dvh);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6) var(--sp-4);
+}
+
+.column {
+  width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.errorToast {
+  width: 100%;
+}
+
+.document {
+  min-height: var(--screen-min-h, 100dvh);
+  padding: var(--sp-4) var(--sp-4) var(--sp-10);
+}
+
+.documentHeader {
+  width: min(720px, 100%);
+  margin: 0 auto var(--sp-2);
+}
+
+.documentBody {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--sp-6);
+  background: var(--surface);
+  border: var(--stroke-thin) solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.documentTitle {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.documentText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.documentText h2 {
+  margin-block-start: var(--sp-4);
+  font-size: var(--fs-title);
+}
+
+.documentText h3 {
+  font-size: var(--fs-lead);
+}
+
+.documentText ol,
+.documentText ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-inline-start: var(--sp-5);
+}
+
+/* 표는 좁은 화면에서 가로로 넘치지 않게 칸을 줄바꿈한다(PRD 7.3) */
+.documentText table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.documentText th,
+.documentText td {
+  border: var(--stroke-thin) solid var(--line);
+  padding: var(--sp-2);
+  vertical-align: top;
+  text-align: start;
+}
+
+.documentText th {
+  background: var(--paper-line);
+}

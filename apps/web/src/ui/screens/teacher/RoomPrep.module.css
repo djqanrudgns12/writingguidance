@@ -1,0 +1,157 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-6);
+}
+
+/* 이 화면의 핵심 종이 한 장: QR·입장 코드·주소(PRD F-16). */
+.qrCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border-radius: var(--r-card);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-paper);
+}
+
+.qrWrap {
+  width: min(100%, 280px);
+}
+
+.codeBlock,
+.urlBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  text-align: center;
+}
+
+.caption {
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+/* 입장 코드는 교실 뒤에서도 읽히게 크게. 큰 숫자 토큰이 없어 제목 크기에서 키운다. */
+.entryCode {
+  font-size: calc(var(--fs-display) * 1.75);
+  font-weight: var(--fw-title);
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.shortUrl {
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  overflow-wrap: anywhere;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+}
+
+.fact dd {
+  margin: 0;
+}
+
+.factValue {
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  font-variant-numeric: tabular-nums;
+}
+
+.pinRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 48px;
+}
+
+.pinDigits {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+
+.pinMask {
+  display: inline-flex;
+  gap: var(--sp-2);
+}
+
+.pinDot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+}
+
+.retention {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--ink-sub);
+}
+
+.retentionIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.primary {
+  padding-top: var(--sp-2);
+}
+
+@media (min-width: 600px) {
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .qrCard {
+    position: sticky;
+    top: var(--sp-5);
+  }
+
+  .qrWrap {
+    width: 100%;
+  }
+}

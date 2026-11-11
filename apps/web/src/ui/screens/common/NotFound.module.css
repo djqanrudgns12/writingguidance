@@ -1,0 +1,12 @@
+.page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6);
+}
+
+.message {
+  margin: 0;
+  font-size: var(--fs-lead);
+  color: var(--ink-sub);
+}

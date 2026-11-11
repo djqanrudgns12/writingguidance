@@ -1,0 +1,141 @@
+.tile {
+  container-type: inline-size;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: 108px;
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  border-left-width: var(--sp-1);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+/* PRD 8.4: 왼쪽 4px 상태 띠(쓰는 중 --sage-ink 등) */
+.stripe_writing,
+.stripe_writingFlow {
+  border-left-color: var(--sage-ink);
+}
+
+/* 흰 타일 위 --butter는 1.38:1이라 진한 버터 계열 토큰을 쓴다(비텍스트 3:1, P5-1 [중-8]). */
+.stripe_idle {
+  border-left-color: var(--butter-ink);
+}
+
+.stripe_submitted {
+  border-left-color: var(--sky-ink);
+}
+
+.stripe_offline {
+  border-left-color: var(--ink-sub);
+}
+
+.tile:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.selected {
+  background: var(--bg);
+  border-top-color: var(--ink);
+  border-right-color: var(--ink);
+  border-bottom-color: var(--ink);
+  box-shadow: var(--shadow-soft);
+}
+
+.tile:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.tile:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.nickname {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  flex-shrink: 0;
+}
+
+.genre {
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: auto;
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.charCount {
+  font-weight: var(--fw-title);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeText {
+  color: var(--ink-sub);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 약 150px 좁은 칸(360px 폭 2열 격자 등)에서는 상태 배지를 아래 줄로 내려 별명이 잘리지 않게 한다 */
+.compact .header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+
+.compact .nickname {
+  width: 100%;
+}
+
+@container (max-width: 184px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-1);
+  }
+
+  .nickname {
+    width: 100%;
+  }
+
+  .metaRow {
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+  }
+}

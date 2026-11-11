@@ -1,0 +1,94 @@
+/*
+ * 디자인 토큰(PRD 8.2~8.9, PLAN §9.1). 화면 CSS에는 색 코드·그림자 값을 직접 쓰지 않고 여기 토큰만 쓴다.
+ * 쌤유니버스 대응: --bg↔--paper, --ink↔--ink, --primary↔--accent, --r-card↔--r-card, --font-sans↔--font
+ * P1 초안. P3-6에서 승인된 화풍(U-17)에 맞춰 확정한다.
+ */
+:root {
+  /* 색 (PRD 8.2) */
+  --bg: #fff8ef;
+  --surface: #ffffff;
+  --paper-line: #f1e4d3;
+  --line: #eadbc8;
+  --ink: #4a3b32;
+  --ink-sub: #7a6759;
+  --primary: #f2a07b;
+  --primary-pressed: #e88f66;
+  --primary-ink: #6b331d;
+  --butter: #f7d98b;
+  --sage: #a9c9a4;
+  --sky: #a8cbe6;
+  --rose: #ee9a8e;
+  --rose-pressed: #e28679;
+  --teacher: #9c8ade;
+  --sage-ink: #4e7a48;
+  --sky-ink: #2f6690;
+  --rose-ink: #a8443a;
+  --teacher-ink: #5b4aa8;
+
+  /* 접근성 보강 토큰(P5-1 대비표). 기존 값은 그대로 두고 대비가 모자란 짝에만 새로 쓴다. */
+  /* 눌림 주 단추 바탕(--primary-pressed) 위 글자 4.75:1(--primary-ink는 4.04:1) */
+  --primary-pressed-ink: #5c2a17;
+  /* 눌림 위험 단추 바탕(--rose-pressed) 위 글자 4.79:1(--ink는 4.03:1) */
+  --rose-pressed-ink: #3d3029;
+  /* 입력칸 경계선: 흰 바탕 3.75:1, 크림 바탕 3.56:1(--line은 1.36:1) */
+  --line-strong: #958070;
+  /* 버터 계열 상태 띠(멈춤): 흰 바탕 4.03:1(--butter는 1.38:1) */
+  --butter-ink: #9c7a1e;
+
+  /* 선과 그림자 (PRD 8.4 "누를 곳이 또렷하게") */
+  --stroke-thin: 1px;
+  --stroke: 1.5px;
+  --stroke-focus: 2px;
+  --shadow-press: 0 3px 0 var(--ink);
+  --shadow-press-down: 0 1px 0 var(--ink);
+  --shadow-soft: 0 2px 0 var(--line);
+  --shadow-paper: 0 3px 0 #efe2d0;
+  --focus-ring: 0 0 0 3px var(--butter);
+
+  /* 모양 */
+  --r-sm: 12px;
+  --r-pill: 999px;
+  --r-card: 24px 28px 22px 26px;
+  --r-sheet: 28px 26px 0 0;
+
+  /* 간격 4px 격자 */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* 글꼴 [고정: 토큰 하나] */
+  --font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  --fs-small: 14px;
+  --fs-body: 16px;
+  --fs-lead: 18px;
+  --fs-title: 22px;
+  --fs-display: 24px;
+  --fs-write: 18px;
+  --lh-body: 1.5;
+  --lh-write: 1.8;
+  --fw-title: 700;
+  --ls-title: -0.02em;
+
+  /* 움직임 (PRD 8.9) */
+  --dur-fast: 150ms;
+  --dur: 200ms;
+  --dur-slow: 250ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* 화면 키보드 높이(visualViewport가 갱신) */
+  --kb-offset: 0px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-slow: 0ms;
+  }
+}

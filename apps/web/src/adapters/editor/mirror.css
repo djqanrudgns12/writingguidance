@@ -1,0 +1,35 @@
+/* 거울 층 표시(PLAN §6.4). 색은 토큰만 쓴다. 감싸는 요소가 position: relative이고 거울이 입력칸 뒤에 놓인다. */
+[data-mirror] {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  margin: 0;
+}
+
+[data-mirror] [data-mirror-content] {
+  width: 100%;
+  will-change: transform;
+}
+
+[data-mirror] [data-mirror-mark='highlight'] {
+  background: var(--butter);
+}
+
+/* inline-block은 UAX #14 줄바꿈 경계를 바꾸므로 0폭 inline 요소와 절대 위치 ::after로 그린다. */
+[data-mirror] [data-mirror-caret] {
+  display: inline;
+  position: relative;
+}
+
+[data-mirror] [data-mirror-caret]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 1.2em;
+  border-left: var(--stroke-focus) solid var(--sky-ink);
+}
+
+[data-mirror] [data-mirror-caret='teacher']::after {
+  border-left-color: var(--teacher-ink);
+}

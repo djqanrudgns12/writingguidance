@@ -47,6 +47,8 @@
 - 디자인: 색·그림자·모서리·간격·글꼴은 `apps/web/src/ui/tokens.css`의 토큰만 쓴다. 금지: 이모지, 기본 `<select>`, `backdrop-filter`, 그라데이션(공책 줄 제외), 순검정, PRD 8.10 금지 목록 전부. 아이콘은 `<Icon name="…">`만 쓴다.
 - 편집기 입력칸(`textarea`·`input`)은 **반영 문이 닫혀 있는 동안** 값·선택·초점·`readOnly`를 건드리지 않는다(PLAN §6.3, PRD 9.3).
 - 파일 하나에 책임 하나. 식별자는 영어, 주석은 한국어로 "왜"를 쓴다.
+- 상대 import는 `.ts`·`.tsx` 확장자를 붙인다(`import { x } from './x.ts'`). enum·namespace·생성자 매개변수 속성은 쓰지 않는다(`erasableSyntaxOnly`, ADR-052).
+- 공용 코드는 `@geulbang/core`, `@geulbang/core/config`, `@geulbang/core/errors`, `@geulbang/core/copy`, `@geulbang/core/text`로 가져온다. 새 하위 경로가 필요하면 보고한다(core `package.json` `exports`는 Claude가 고친다).
 
 ## 4. 검사와 맥미니 자원
 

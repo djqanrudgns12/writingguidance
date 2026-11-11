@@ -1,0 +1,39 @@
+/* S3 별명(PRD F-04) */
+.page {
+  min-height: var(--screen-min-h, 100dvh);
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-8) var(--sp-4) var(--sp-6);
+}
+
+.column {
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.roomLabel {
+  margin: 0;
+  color: var(--ink-sub);
+  font-size: var(--fs-small);
+}
+
+.input {
+  font-size: var(--fs-lead);
+}
+
+.takenCard {
+  width: 100%;
+}
+
+.takenText {
+  margin: 0 0 var(--sp-3);
+  font-weight: var(--fw-title);
+}
+
+.takenActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}

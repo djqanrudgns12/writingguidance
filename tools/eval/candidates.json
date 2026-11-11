@@ -1,0 +1,53 @@
+{
+  "source": "PRD 6.4.1 · Claude API 문서 (단위: USD / 1M tokens)",
+  "defaultRepeat": 3,
+  "candidates": [
+    {
+      "id": "haiku-off",
+      "label": "Haiku 5.5 (생각 끔)",
+      "model": "claude-haiku-5-5",
+      "effort": "off",
+      "pricing": {
+        "inputUsdPerMTok": 0.1,
+        "outputUsdPerMTok": 0.5
+      }
+    },
+    {
+      "id": "haiku-low",
+      "label": "Haiku 5.5 (생각 낮음)",
+      "model": "claude-haiku-5-5",
+      "effort": "low",
+      "pricing": {
+        "inputUsdPerMTok": 0.1,
+        "outputUsdPerMTok": 0.5
+      }
+    },
+    {
+      "id": "sonnet-low",
+      "label": "Sonnet 5.5 (생각 낮음)",
+      "model": "claude-sonnet-5-5",
+      "effort": "low",
+      "pricing": {
+        "inputUsdPerMTok": 2,
+        "outputUsdPerMTok": 10
+      }
+    }
+  ],
+  "fallback": {
+    "model": "claude-sonnet-5-5",
+    "effort": "low",
+    "pricing": {
+      "inputUsdPerMTok": 2,
+      "outputUsdPerMTok": 10
+    }
+  },
+  "judge": {
+    "model": "claude-opus-5-5",
+    "effort": "low",
+    "batchDiscount": 0.5,
+    "pricing": {
+      "inputUsdPerMTok": 4,
+      "outputUsdPerMTok": 20
+    }
+  }
+}

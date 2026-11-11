@@ -1,0 +1,180 @@
+/* S0 홈(PRD F-01). 가운데 한 줄 기둥: 이어 쓰기 카드 → 그림 → 큰 버튼 → 최근 수업방. */
+.home {
+  min-height: var(--screen-min-h, 100dvh);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--sp-6) var(--sp-4) var(--sp-4);
+}
+
+.column {
+  flex: 1;
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--sp-5);
+}
+
+.resumeCard {
+  width: 100%;
+}
+
+.resumeBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-4);
+}
+
+.resumeTitle {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+  line-height: 1.35;
+}
+
+.resumeMeta {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--ink-sub);
+  font-size: var(--fs-small);
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.heroArt {
+  width: min(220px, 60vw);
+  height: auto;
+}
+
+/* 카드가 있으면 그림을 줄여 카드와 큰 버튼이 한 화면에 들어오게 한다. */
+.heroCompact .heroArt {
+  width: min(140px, 40vw);
+}
+
+.appName {
+  margin: 0;
+  font-size: var(--fs-display);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.startButton {
+  width: 100%;
+}
+
+.recent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.recentHeading {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-title);
+  color: var(--ink-sub);
+}
+
+.recentList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.recentRow {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border: var(--stroke-thin) solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.recentRow:hover {
+  border-color: var(--ink);
+}
+
+.recentRow:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.recentText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.recentName {
+  font-weight: var(--fw-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recentMeta {
+  color: var(--ink-sub);
+  font-size: var(--fs-small);
+}
+
+.recentAction {
+  flex-shrink: 0;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.addToHome {
+  width: 100%;
+}
+
+.addToHomeRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.addToHomeText {
+  flex: 1;
+  margin: 0;
+  font-size: var(--fs-small);
+}
+
+.footer {
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: var(--sp-6);
+}
+
+/* PRD F-01: 오른쪽 아래 작은 글자 버튼, 맨 아래 작은 글씨 처리방침 */
+.teacherLink {
+  align-self: flex-end;
+}
+
+.privacyLink {
+  align-self: center;
+}

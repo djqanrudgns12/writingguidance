@@ -1,0 +1,56 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* 900px 미만: 아이콘 + 짧은 글자, 한 줄 유지(PRD F-06). 360px에서 4개가 한 줄에 들어가도록 줄인다. */
+.chipsNarrow {
+  flex-wrap: nowrap;
+  gap: var(--sp-1);
+}
+
+.chipsNarrow .chip {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-1);
+  gap: var(--sp-1);
+  font-size: var(--fs-small);
+}
+
+.chipActive {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+}
+
+.guide,
+.note {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--ink-sub);
+  font-weight: var(--fw-title);
+}
+
+.guide {
+  min-height: 48px;
+  font-size: var(--fs-body);
+}
+
+.note {
+  font-size: var(--fs-small);
+}
+
+/* 닫힌 수업방: 오프라인 칩과 같은 흐린 모양(P5-4 시각 검토 7번). 흐림 정도는 부품의 `:disabled`가 맡는다. */
+.wrap[data-disabled='true'] .chip {
+  background: var(--bg);
+  color: var(--ink-sub);
+}

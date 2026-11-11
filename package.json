@@ -1,0 +1,40 @@
+{
+  "name": "geulbang",
+  "private": true,
+  "type": "module",
+  "description": "쌤유 글방: 초등 수업용 실시간 글쓰기 웹앱",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "node tools/dev.mjs",
+    "build": "tsc -b && npm run build -w @geulbang/web",
+    "build:devices": "npm run build -w @geulbang/web -- --mode devices",
+    "typecheck": "tsc -b && tsc -p packages/core/tsconfig.test.json && tsc -p apps/server/tsconfig.test.json && tsc -p apps/web && tsc -p tests/integration && tsc -p tests/e2e",
+    "format": "prettier --write .",
+    "check": "prettier --check . && npm run typecheck && npm run check:rules && npm run test:checks",
+    "test": "vitest run",
+    "test:server": "vitest run --project server",
+    "e2e": "playwright test",
+    "verify": "npm run check && npm run test -- --maxWorkers=1 && npm run build && npm run e2e -- --workers=1",
+    "test:integration": "vitest run --project integration",
+    "check:rules": "node tools/checks/layers.mjs && node tools/checks/forbidden.mjs && node tools/checks/free-plan.mjs && node tools/checks/prd-sync.mjs && node tools/checks/bundle.mjs && node apps/web/scripts/gen-icons.mjs --check",
+    "test:checks": "node --test tools/checks/checks.test.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.2",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "vite": "8.3.5",
+    "vitest": "5.1.0"
+  },
+  "allowScripts": {
+    "better-sqlite3": false,
+    "fsevents": false
+  }
+}

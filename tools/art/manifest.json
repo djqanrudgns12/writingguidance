@@ -1,0 +1,85 @@
+{
+  "outputDir": "apps/web/src/ui/art",
+  "quality": 85,
+  "alphaLowPercent": 14,
+  "alphaHighPercent": 97,
+  "firstScreenBudget": {
+    "items2x": ["home-book", "gulbeot-face"],
+    "grainReserveBytes": 8192,
+    "maxTotalBytes": 81920
+  },
+  "items": [
+    {
+      "name": "gulbeot-face",
+      "input": ".local/art/P3-8a/01-face.png",
+      "width": 48,
+      "maxBytes2x": 6144
+    },
+    {
+      "name": "gulbeot-default",
+      "input": ".local/art/P3-8a/02-default.png",
+      "width": 160,
+      "maxBytes2x": 20480
+    },
+    {
+      "name": "gulbeot-reading",
+      "input": ".local/art/P3-8a/03-reading.png",
+      "width": 160,
+      "maxBytes2x": 20480
+    },
+    {
+      "name": "gulbeot-thinking",
+      "input": ".local/art/P3-8a/04-thinking.png",
+      "width": 160,
+      "maxBytes2x": 20480
+    },
+    {
+      "name": "gulbeot-welcoming",
+      "input": ".local/art/P3-8a/05-welcoming.png",
+      "width": 160,
+      "maxBytes2x": 20480
+    },
+    {
+      "name": "gulbeot-resting",
+      "input": ".local/art/P3-8a/06-resting.png",
+      "width": 160,
+      "maxBytes2x": 20480
+    },
+    {
+      "name": "home-book",
+      "input": ".local/art/P3-8b/02-home-book.png",
+      "width": 240,
+      "maxBytes2x": 46080
+    },
+    {
+      "name": "waiting-letter",
+      "input": ".local/art/P3-8b/03-waiting-letter.png",
+      "width": 240,
+      "maxBytes2x": 40960
+    },
+    {
+      "name": "closed-door",
+      "input": ".local/art/P3-8b/04-closed-door.png",
+      "width": 240,
+      "maxBytes2x": 40960
+    },
+    {
+      "name": "empty-desks",
+      "input": ".local/art/P3-8b/05-empty-desks.png",
+      "width": 240,
+      "maxBytes2x": 40960
+    },
+    {
+      "name": "offline-umbrella",
+      "input": ".local/art/P3-8b/06-offline-umbrella.png",
+      "width": 240,
+      "maxBytes2x": 40960
+    },
+    {
+      "name": "submit-stamp",
+      "input": ".local/art/P3-8b/07-submit-stamp.png",
+      "width": 240,
+      "maxBytes2x": 40960
+    }
+  ]
+}

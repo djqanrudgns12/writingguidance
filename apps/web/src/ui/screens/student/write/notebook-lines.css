@@ -1,0 +1,18 @@
+/*
+ * 공책 줄(PRD 8.3: 쓰기 칸만). 그라데이션은 이 파일에서만 쓴다(tools/checks/forbidden.mjs 예외 파일 이름).
+ * 줄 간격 = 글자 크기 × 1.8(`--write-lh`). 입력칸 위아래 여백을 한 줄 간격으로 두어 글자 줄과 공책 줄이 맞는다.
+ * 입력칸이 안에서 스크롤해도 줄이 글과 함께 움직이도록 `background-attachment: local`을 쓴다.
+ */
+.gb-notebook-lines {
+  background-color: transparent;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--write-lh) - 1px),
+    var(--paper-line) calc(var(--write-lh) - 1px),
+    var(--paper-line) var(--write-lh)
+  );
+  background-attachment: local;
+  background-repeat: repeat;
+  background-position: 0 0;
+}

@@ -1,0 +1,294 @@
+.triggerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-height: 44px;
+  min-width: 48px;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-pill);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-title);
+  cursor: pointer;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--ink);
+  opacity: 0.32;
+  transition: opacity var(--dur) var(--ease);
+}
+
+.backdrop[data-starting-style],
+.backdrop[data-ending-style] {
+  opacity: 0;
+}
+
+.viewport {
+  position: fixed;
+  inset: 0;
+  z-index: 41;
+  display: flex;
+  pointer-events: none;
+}
+
+.viewport_bottom,
+.viewport_responsive {
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.viewport_side {
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.popup {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-paper);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  transition:
+    transform var(--dur) var(--ease),
+    opacity var(--dur) var(--ease);
+}
+
+/* PRD 7.3, F-06, PLAN §9.2: 900px 미만 바텀시트(기본 60~85dvh, 결과용은 60dvh 고정 + 내부 스크롤) */
+.popup_bottom,
+.popup_responsive {
+  width: min(640px, 100%);
+  min-height: 60dvh;
+  max-height: 85dvh;
+  padding: var(--sp-2) var(--sp-5) calc(var(--sp-5) + var(--kb-offset));
+  border-radius: var(--r-sheet);
+  border: var(--stroke) solid var(--ink);
+  border-bottom: none;
+}
+
+.popup_bottom.popup_height_result,
+.popup_responsive.popup_height_result {
+  height: 60dvh;
+  min-height: 60dvh;
+  max-height: 60dvh;
+}
+
+/* 내용 높이 시트(최대 85dvh는 그대로). 900px 이상 responsive는 아래 옆 패널 규칙이 정한다. */
+.popup_bottom.popup_height_fit,
+.popup_responsive.popup_height_fit {
+  min-height: 0;
+}
+
+.popup_bottom[data-starting-style],
+.popup_bottom[data-ending-style],
+.popup_responsive[data-starting-style],
+.popup_responsive[data-ending-style] {
+  opacity: 0;
+  transform: translateY(24px);
+}
+
+/* 교사 서랍(side): 스마트폰은 전체 화면, 900px 이상은 오른쪽 480px 서랍(PRD 7.3, F-18) */
+.popup_side {
+  width: 100%;
+  height: 100dvh;
+  padding: var(--sp-5);
+  border-left: var(--stroke) solid var(--ink);
+}
+
+.popup_side[data-starting-style],
+.popup_side[data-ending-style] {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
+.dragHandleArea {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 28px;
+  padding: var(--sp-2) 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.dragPill {
+  width: 44px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--line);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: var(--stroke-thin) solid var(--line);
+}
+
+.headerMain {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.badgeRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  line-height: 1.3;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.titleIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.closeButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.closeButton::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.closeButton:hover {
+  background: var(--paper-line);
+}
+
+.closeButton:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.description {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding-top: var(--sp-3);
+  border-top: var(--stroke-thin) solid var(--line);
+}
+
+@media (min-width: 900px) {
+  .viewport_responsive {
+    align-items: stretch;
+    justify-content: flex-end;
+    padding: var(--sp-4);
+  }
+
+  .popup_responsive,
+  .popup_responsive.popup_height_result {
+    width: min(400px, 42vw);
+    height: calc(100dvh - var(--sp-8));
+    min-height: 0;
+    max-height: none;
+    padding: var(--sp-5);
+    border-radius: var(--r-card);
+    border: var(--stroke) solid var(--ink);
+  }
+
+  .popup_responsive[data-starting-style],
+  .popup_responsive[data-ending-style] {
+    transform: translateX(16px);
+  }
+
+  .popup_responsive .dragHandleArea {
+    display: none;
+  }
+
+  .popup_side {
+    width: min(480px, 48vw);
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "good-app",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.4.0",
+    "hono": "4.13.16",
+    "yjs": "13.6.33"
+  }
+}

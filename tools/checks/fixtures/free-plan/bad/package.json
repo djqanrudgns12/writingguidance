@@ -1,0 +1,11 @@
+{
+  "name": "bad-app",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.4.0",
+    "stripe": "16.0.0",
+    "@sentry/node": "8.0.0",
+    "openai": "4.0.0",
+    "@supabase/supabase-js": "2.0.0"
+  }
+}

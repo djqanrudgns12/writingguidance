@@ -1,0 +1,47 @@
+.card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border-radius: var(--r-card);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-paper);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-pill);
+  background: var(--bg);
+}
+
+.ok .icon {
+  color: var(--sage-ink);
+}
+
+.pending .icon {
+  color: var(--sky-ink);
+}
+
+.problem .icon {
+  color: var(--rose-ink);
+}
+
+.message {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+  line-height: 1.4;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}

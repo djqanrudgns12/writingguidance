@@ -1,0 +1,24 @@
+/* QR은 흰 종이 위 잉크 한 색. 바깥 상자가 폭을 정하고 정사각형을 지킨다. */
+.box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  color: var(--ink);
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.paper {
+  fill: var(--surface);
+}
+
+.placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-sm);
+  background: var(--paper-line);
+}

@@ -1,0 +1,7 @@
+/* S6 이어 쓰기 기다림(PRD F-14) */
+.page {
+  min-height: var(--screen-min-h, 100dvh);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-6) var(--sp-4);
+}

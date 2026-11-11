@@ -1,0 +1,18 @@
+export const configDefaults = {
+  ROOM_TTL_DAYS: 30,
+  PERSONAL_TTL_DAYS: 30,
+  PIN_IP_MAX_FAILS: 30,
+  PIN_GLOBAL_SLOW_FAILS: 100,
+  PIN_GLOBAL_DELAY_MS: 2000,
+  TEACHER_START_CODE_REQUIRED: true,
+  WS_MAX_PAYLOAD_BYTES: 1024 * 1024,
+  AI_REQUEST_MAX_BYTES: 96 * 1024,
+  UNDO_GROUP_MS: { fine: 400, normal: 800, coarse: 1600 },
+  TIMER_PRESETS_MIN: [5, 10, 15, 20],
+  AI_MIN_CHARS: { default: 20, poem: 10, posterSlogan: 4 },
+  AI_PROVIDER: 'anthropic',
+  MODEL_SPELL: 'claude-haiku-5-5',
+  AI_EFFORT_SPELL: 'low',
+  AI_EFFORT_FEEDBACK: 'off',
+  TIMEZONE: 'Asia/Seoul',
+} as const;

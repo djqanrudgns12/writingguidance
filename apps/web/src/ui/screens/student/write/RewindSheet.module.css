@@ -1,0 +1,25 @@
+.empty {
+  margin: 0;
+  padding: var(--sp-6) 0;
+  text-align: center;
+  color: var(--ink-sub);
+}
+
+.preview {
+  max-height: 40dvh;
+  overflow-y: auto;
+}
+
+.previewTitle {
+  margin: 0 0 var(--sp-2);
+  font-weight: var(--fw-title);
+  font-size: var(--panel-fs, var(--fs-body));
+}
+
+.previewBody {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  font-size: var(--panel-fs, var(--fs-body));
+  line-height: var(--lh-write);
+}

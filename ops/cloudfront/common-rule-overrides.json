@@ -1,0 +1,6 @@
+[
+  { "Name": "SizeRestrictions_BODY", "ActionToUse": { "Count": {} } },
+  { "Name": "SizeRestrictions_Cookie_HEADER", "ActionToUse": { "Count": {} } },
+  { "Name": "NoUserAgent_HEADER", "ActionToUse": { "Count": {} } },
+  { "Name": "CrossSiteScripting_BODY", "ActionToUse": { "Count": {} } }
+]

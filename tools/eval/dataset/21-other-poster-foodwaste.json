@@ -1,0 +1,30 @@
+{
+  "id": "21-other-poster-foodwaste",
+  "genre": "other",
+  "subtype": null,
+  "purpose": "poster",
+  "text": "내가 남긴 한 숟가락, 지구가 흘리는 눈물 한 방울!\n먹을만큼만 덜어서 깨끗하게 비워요.",
+  "helpNotes": [
+    {
+      "question": "누구에게 무엇을 알리나요?",
+      "note": "전교생 친구들에게 급식 잔반 줄이기를 알린다"
+    },
+    {
+      "question": "기억에 남을 한마디는?",
+      "note": "내가 남긴 한 숟가락, 지구가 흘리는 눈물 한 방울!"
+    },
+    {
+      "question": "설명 한두 문장",
+      "note": "먹을 만큼만 덜어서 남김없이 먹자는 안내"
+    }
+  ],
+  "plantedErrors": [
+    {
+      "original": "먹을만큼만",
+      "suggestion": "먹을 만큼만",
+      "kind": "spacing"
+    }
+  ],
+  "mustNotFlag": ["한 숟가락", "눈물 한 방울"],
+  "notes": "기타 문구(포스터·표어, purpose: poster). 짧은 대구 표현의 리듬과 길이를 유지하면서 의존명사 띄어쓰기(먹을 만큼만)를 잡는지 확인한다."
+}

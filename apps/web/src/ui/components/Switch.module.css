@@ -1,0 +1,86 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 48px;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.textGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--fs-body);
+  font-weight: var(--fw-title);
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.description {
+  font-size: var(--fs-small);
+  line-height: 1.35;
+  color: var(--ink-sub);
+}
+
+.track {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 52px;
+  height: 30px;
+  padding: 2px;
+  border-radius: var(--r-pill);
+  border: var(--stroke) solid var(--ink);
+  background: var(--bg);
+  box-shadow: var(--shadow-soft);
+  cursor: inherit;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+/* 30px 시각 트랙 위아래로 초3 터치 영역 48px을 확보한다(PRD 7.3). */
+.track::after {
+  content: '';
+  position: absolute;
+  inset: -9px 0;
+  min-width: 52px;
+  min-height: 48px;
+}
+
+.track[data-checked] {
+  background: var(--sage);
+}
+
+.track:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.thumb {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  transform: translateX(0);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.thumb[data-checked] {
+  transform: translateX(22px);
+}

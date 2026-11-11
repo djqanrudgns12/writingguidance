@@ -1,0 +1,19 @@
+/* 제출 확인·글자 크기 시트 */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding-top: var(--sp-2);
+}
+
+.sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* 칩 글자가 그 크기로 보이게 해 눌러 보기 전에 크기를 짐작하게 한다. */
+.sizes .sizeChip {
+  font-size: var(--size-sample);
+  min-height: 52px;
+}

@@ -1,0 +1,52 @@
+/* 견본 전용 제자리 시트: 가장 가까운 transform 조상(견본 틀) 안 아래쪽에 붙는다. */
+.inline {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  max-height: 88%;
+  padding: 0 var(--sp-2);
+  pointer-events: none;
+}
+
+/* 부품 Panel의 overflow: hidden보다 앞서도록 두 겹 선택자 */
+.inline .inlinePanel {
+  width: min(640px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  pointer-events: auto;
+}
+
+.titleWithMedia {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+/* 실제 Sheet의 responsive 모드처럼 900px 이상은 오른쪽 종이 카드 */
+@media (min-width: 900px) {
+  .inline[data-sheet-inline='responsive'] {
+    top: 0;
+    left: auto;
+    max-height: none;
+    padding: var(--sp-4);
+    align-items: stretch;
+  }
+
+  .inline[data-sheet-inline='responsive'] .inlinePanel {
+    width: min(400px, 42vw);
+    border-radius: var(--r-card);
+  }
+}

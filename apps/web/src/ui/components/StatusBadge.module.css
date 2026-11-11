@@ -1,0 +1,58 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 28px;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.writing {
+  background: var(--sage);
+  color: var(--ink);
+}
+
+.writingFlow {
+  background: var(--surface);
+  border-color: var(--sage-ink);
+  color: var(--sage-ink);
+}
+
+.idle {
+  background: var(--butter);
+  color: var(--ink);
+}
+
+.submitted {
+  background: var(--sky);
+  color: var(--ink);
+}
+
+.offline {
+  background: var(--bg);
+  border-color: var(--line);
+  color: var(--ink-sub);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+/* PRD F-17: 30~180초 사이는 테두리만 있는 연필로 표시한다. */
+.outlineIcon {
+  flex-shrink: 0;
+}
+
+.outlineIcon :global(.icon-tone) {
+  opacity: 0;
+}
+
+.label {
+  display: inline-block;
+}

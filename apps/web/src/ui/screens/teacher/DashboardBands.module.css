@@ -1,0 +1,62 @@
+.resume {
+  align-items: flex-start;
+}
+
+.resumeBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.resumeLabel {
+  font-weight: var(--fw-title);
+}
+
+.resumeList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.resumeItem {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.nickname {
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.resumeActions {
+  display: inline-flex;
+  gap: var(--sp-1);
+}
+
+/* 접힌 요청 띠(좁은 화면): 첫 줄은 `이어 쓰기 요청 N건`, 펼치면 아래에 줄마다 [허용][거절]과 `모두 허용` */
+.resumeFolded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.resumeFoldedBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.resumeFoldedBody .resumeList {
+  flex-direction: column;
+}
+
+.resumeFoldedAll {
+  display: flex;
+}

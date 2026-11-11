@@ -1,0 +1,75 @@
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* 흰 종이 줄 단추: 잉크 테두리 + 옅은 그림자(보조 단추와 같은 말씨, PRD 8.4). */
+.option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-sm);
+  border: var(--stroke) solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  font-family: var(--font-sans);
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.option:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.option:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.option:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+}
+
+.count {
+  min-width: 40px;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-pill);
+  background: var(--bg);
+  font-size: var(--fs-body);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 움직임 줄이기: 누를 때 내려앉지 않는다(PRD 8.9, P5-1 [하-5]). */
+@media (prefers-reduced-motion: reduce) {
+  .option:active:not(:disabled) {
+    transform: none;
+  }
+}

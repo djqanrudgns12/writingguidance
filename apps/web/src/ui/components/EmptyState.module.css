@@ -1,0 +1,82 @@
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: var(--sp-8) var(--sp-5);
+  border-radius: var(--r-card);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: center;
+}
+
+.illustration {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  min-height: 96px;
+  padding: var(--sp-4);
+  border-radius: var(--r-card);
+  border: var(--stroke-thin) dashed var(--line);
+  background: var(--bg);
+  color: var(--ink-sub);
+}
+
+.framedIllustration {
+  border-color: transparent;
+}
+
+.frameOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.artImage {
+  position: relative;
+  display: block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.frameOverlay:not([src]),
+.artImage:not([src]) {
+  visibility: hidden;
+}
+
+/* 알림 영역으로 묶은 제목·설명(`liveText`): 묶지 않았을 때와 같은 간격으로 쌓는다. */
+.text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.title {
+  margin: 0;
+  max-width: 36ch;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+  line-height: var(--lh-body);
+}
+
+.description {
+  margin: 0;
+  max-width: 40ch;
+  font-size: var(--fs-body);
+  color: var(--ink-sub);
+}
+
+.action {
+  margin-top: var(--sp-2);
+}

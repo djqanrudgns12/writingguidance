@@ -1,0 +1,58 @@
+{
+  "name": "@geulbang/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "브라우저와 서버가 함께 쓰는 설정·도메인·프로토콜·문구",
+  "exports": {
+    ".": {
+      "@geulbang/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./config": {
+      "@geulbang/source": "./src/config.ts",
+      "types": "./dist/config.d.ts",
+      "default": "./dist/config.js"
+    },
+    "./errors": {
+      "@geulbang/source": "./src/errors.ts",
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    },
+    "./text": {
+      "@geulbang/source": "./src/text/index.ts",
+      "types": "./dist/text/index.d.ts",
+      "default": "./dist/text/index.js"
+    },
+    "./copy": {
+      "@geulbang/source": "./src/copy/ko.ts",
+      "types": "./dist/copy/ko.d.ts",
+      "default": "./dist/copy/ko.js"
+    },
+    "./copy/dev": {
+      "@geulbang/source": "./src/copy/dev.ts",
+      "types": "./dist/copy/dev.d.ts",
+      "default": "./dist/copy/dev.js"
+    },
+    "./protocol": {
+      "@geulbang/source": "./src/protocol/index.ts",
+      "types": "./dist/protocol/index.d.ts",
+      "default": "./dist/protocol/index.js"
+    },
+    "./api": {
+      "@geulbang/source": "./src/api/index.ts",
+      "types": "./dist/api/index.d.ts",
+      "default": "./dist/api/index.js"
+    }
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "fast-check": "4.10.2"
+  }
+}

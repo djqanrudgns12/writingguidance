@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 쌤유 글방 운영 서버 데몬 (PLAN §2.1, §15.2).
+     127.0.0.1:4460에만 열며 외부 노출은 전용 cloudflared 터널(com.ssamwrite.tunnel)만 맡는다.
+     비밀값은 이 plist(권한 644)에 넣지 않고 wesvc 전용 secrets/app.env(600)를 --env-file로 읽는다.
+     릴리스 식별자(RELEASE_ID)는 배포·되돌리기 스크립트가 state/release.env에 기록한다.
+     맥미니의 다른 서비스(쌤유니버스 clsvc 4390, rollingthunder rtsvc 3000·8000·20241)는 건드리지 않는다. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ssamwrite.server</string>
+  <key>UserName</key><string>__WE_USER__</string>
+  <key>WorkingDirectory</key><string>/Users/__WE_USER__/writeessay-server/app</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/opt/node@24/bin/node</string>
+    <string>--env-file=/Users/__WE_USER__/writeessay-server/secrets/app.env</string>
+    <string>--env-file-if-exists=/Users/__WE_USER__/writeessay-server/state/release.env</string>
+    <string>apps/server/dist/index.js</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>/Users/__WE_USER__</string>
+    <key>NODE_ENV</key><string>production</string>
+    <key>HOST</key><string>127.0.0.1</string>
+    <key>PORT</key><string>4460</string>
+    <key>DB_PATH</key><string>/Users/__WE_USER__/writeessay-server/data/geulbang.sqlite</string>
+    <key>PATH</key><string>/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>ExitTimeOut</key><integer>30</integer>
+  <key>StandardOutPath</key><string>/Users/__WE_USER__/writeessay-server/logs/server.log</string>
+  <key>StandardErrorPath</key><string>/Users/__WE_USER__/writeessay-server/logs/server.log</string>
+</dict>
+</plist>

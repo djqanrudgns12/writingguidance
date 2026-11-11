@@ -1,0 +1,76 @@
+/* S1 수업 카드 + 동의(PRD F-02·F-03). 손그림 테두리는 수업 카드 하나에만. */
+.page {
+  min-height: var(--screen-min-h, 100dvh);
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-6) var(--sp-4);
+}
+
+.column {
+  width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.roomCard {
+  text-align: center;
+}
+
+.school {
+  margin: 0 0 var(--sp-1);
+  color: var(--ink-sub);
+  font-size: var(--fs-small);
+}
+
+.className {
+  margin: 0;
+  font-size: var(--fs-display);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+  line-height: 1.3;
+}
+
+.roomTitle {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-lead);
+}
+
+.consent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.consentHeading {
+  margin: 0;
+  font-size: var(--fs-lead);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+}
+
+.consentList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.consentList li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  line-height: var(--lh-body);
+}
+
+.bulletIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--ink-sub);
+}
+
+.learnMore {
+  align-self: center;
+}

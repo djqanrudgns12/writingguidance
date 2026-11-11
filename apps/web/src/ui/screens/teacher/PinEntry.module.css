@@ -1,0 +1,34 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.lockText {
+  display: inline;
+}
+
+.lockTime {
+  font-weight: var(--fw-title);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 좁은 화면에서는 8칸이 겨우 들어가서 종이 카드 테두리를 빼고 크림 바탕에 바로 둔다. */
+@media (min-width: 472px) {
+  .card {
+    padding: var(--sp-6) var(--sp-5);
+    border-radius: var(--r-card);
+    border: var(--stroke) solid var(--ink);
+    background: var(--surface);
+    box-shadow: var(--shadow-paper);
+  }
+}

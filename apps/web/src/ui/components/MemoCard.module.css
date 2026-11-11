@@ -1,0 +1,119 @@
+/* PRD 8.4: 읽기 전용(기본) 메모 카드는 그림자 없이 옅은 선으로만 표현한다. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border-radius: var(--r-card);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.interactive {
+  border-color: var(--ink);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.interactive:hover {
+  background: var(--bg);
+}
+
+.interactive:active {
+  transform: translateY(1px);
+}
+
+.default {
+  border-left: var(--sp-1) solid var(--ink);
+}
+
+.praise {
+  border-left: var(--sp-1) solid var(--sage-ink);
+}
+
+.improve {
+  border-left: var(--sp-1) solid var(--primary-ink);
+}
+
+.note {
+  border-left: var(--sp-1) solid var(--sky-ink);
+  background: var(--bg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.headingGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.heading {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  letter-spacing: var(--ls-title);
+  color: var(--ink);
+}
+
+.praise .heading {
+  color: var(--sage-ink);
+}
+
+.improve .heading {
+  color: var(--primary-ink);
+}
+
+.note .heading {
+  color: var(--sky-ink);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  padding-top: var(--sp-1);
+  font-size: var(--fs-small);
+  color: var(--ink-sub);
+}
+
+/* 움직임 줄이기: 누를 때 내려앉지 않는다(PRD 8.9, P5-1 [하-5]). */
+@media (prefers-reduced-motion: reduce) {
+  .interactive:active {
+    transform: none;
+  }
+}

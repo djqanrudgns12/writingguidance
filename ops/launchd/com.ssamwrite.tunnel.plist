@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 쌤유 글방 전용 Cloudflare 터널 데몬 (PLAN §2.1, §15.2).
+     공유기 포트 개방 없이 맥이 밖으로만 연결한다. 메트릭은 127.0.0.1:20242 전용(rollingthunder 20241과 분리).
+     KeepAlive.PathState로 state/public-off 파일이 없을 때만 터널을 살려 둔다(we.sh public off 스위치).
+     맥미니의 다른 서비스·터널(20241, 쌤유니버스 컨테이너 터널)은 건드리지 않는다. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ssamwrite.tunnel</string>
+  <key>UserName</key><string>__WE_USER__</string>
+  <key>WorkingDirectory</key><string>/Users/__WE_USER__/writeessay-server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/cloudflared</string>
+    <string>tunnel</string>
+    <string>--config</string><string>/Users/__WE_USER__/writeessay-server/cloudflared/config.yml</string>
+    <string>--no-autoupdate</string>
+    <string>--metrics</string><string>127.0.0.1:20242</string>
+    <string>run</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>/Users/__WE_USER__</string>
+  </dict>
+  <key>ProcessType</key><string>Interactive</string>
+  <key>KeepAlive</key>
+  <dict>
+    <key>PathState</key>
+    <dict>
+      <key>/Users/__WE_USER__/writeessay-server/state/public-off</key>
+      <false/>
+    </dict>
+  </dict>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>StandardOutPath</key><string>/Users/__WE_USER__/writeessay-server/logs/tunnel.log</string>
+  <key>StandardErrorPath</key><string>/Users/__WE_USER__/writeessay-server/logs/tunnel.log</string>
+</dict>
+</plist>

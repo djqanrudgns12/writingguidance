@@ -1,0 +1,25 @@
+{
+  "id": "05-poem-dandelion",
+  "genre": "poem",
+  "subtype": "children-poem",
+  "text": "돌틈 노란꽃\n방긋 웃네",
+  "helpNotes": [
+    {
+      "question": "무엇을 보고 쓰나요?",
+      "note": "담장 아래 돌틈에 핀 민들레"
+    },
+    {
+      "question": "어떤 마음이 드나요?",
+      "note": "작지만 반갑고 기특한 마음"
+    }
+  ],
+  "plantedErrors": [
+    {
+      "original": "노란꽃",
+      "suggestion": "노란 꽃",
+      "kind": "spacing"
+    }
+  ],
+  "mustNotFlag": ["돌틈", "방긋"],
+  "notes": "AI 최소 글자 수(AI_MIN_CHARS.poem = 10) 바로 위인 11자(줄바꿈 포함 12자) 초단문 동시. 10자 안팎의 아주 짧은 시에서도 네 버튼이 정상 동작하고 행 구조를 유지하는지 확인한다."
+}
