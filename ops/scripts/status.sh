@@ -46,6 +46,9 @@ fi
 echo "현재 릴리스 : ${cur_rel:-없음} (링크: $app_link)"
 echo "이전 릴리스 : ${prev_rel:-없음}"
 echo "마지막 배포 : $last_dep"
+auto_state="$(cat "$WE_STATE/autodeploy-status" 2>/dev/null || echo '기록 없음')"
+[ ! -e "$WE_HOME/AUTO_DEPLOY_PAUSED" ] || auto_state="일시정지 중 — $auto_state"
+echo "자동 배포   : $auto_state"
 echo "공개 연결   : $pub_switch"
 echo "현재 시간대 : $school_win ($(TZ=Asia/Seoul date '+%F %T KST'))"
 

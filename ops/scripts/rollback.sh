@@ -53,7 +53,7 @@ done
 here="$(cd "$(dirname "$0")" && pwd -P)"
 . "$here/env.sh"
 
-[ "$(id -un)" = "$WE_SERVICE_USER" ] || we_die "$WE_SERVICE_USER 계정으로 실행해야 합니다: sh ops/we.sh rollback"
+we_require_service_user rollback
 
 if [ "$from_deploy" != "1" ]; then
   we_lock deploy || { echo "ERROR: 다른 배포 또는 되돌리기가 진행 중입니다" >&2; exit 75; }
@@ -88,6 +88,10 @@ fi
 [ -f "$target_dir/apps/server/dist/index.js" ] || we_die "서버 실행 파일이 없습니다: $target_dir/apps/server/dist/index.js"
 
 target_sha="$(basename "$target_dir")"
+if [ "$from_deploy" != "1" ]; then
+  touch "$WE_HOME/AUTO_DEPLOY_PAUSED"
+  echo '자동 배포를 멈췄습니다. 고친 커밋을 푸시한 뒤 sh ops/we.sh autodeploy resume'
+fi
 echo "되돌리기 시작: ${current_link:-(없음)} -> $target_dir (DB는 되돌리지 않음, PLAN §15.4)"
 
 printf 'RELEASE_ID=releases/%s\n' "$target_sha" > "$WE_STATE/release.env.tmp"

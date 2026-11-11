@@ -13,17 +13,18 @@
 
 ## 1부 · 맥미니 초기 설정과 첫 배포 안내 (U-19)
 
-### 1단계 · 저장소와 배포 방식 확인 (U-13: `git bundle`, 약 5분)
+### 1단계 · 저장소와 배포 방식 확인 (U-13 해결: GitHub + 푸시 자동 배포, 약 5분)
 
-GitHub 원격 저장소 없이 소유자 작업 저장소의 커밋을 `git bundle` 파일로 묶어 서비스 계정(`wesvc`)에 전달하는 기본 방식(U-13 ②)을 쓴다. 번들을 만들려면 로컬 Git 저장소에 최소 1개의 커밋(`HEAD`)이 있어야 한다.
+원격은 GitHub `djqanrudgns12/writingguidance`, 운영 브랜치는 `main`이다(ADR-058). **첫 배포만** 소유자 작업 저장소의 커밋을 `git bundle`로 넘기고(4단계), 그 뒤로는 맥미니가 1분마다 GitHub `main`을 보고 GitHub 시험(`verify`)이 통과한 커밋을 스스로 배포한다(4-1단계).
 
 ```bash
 cd /Users/bodyking/Desktop/Architecture/writeessay
-git rev-parse --short HEAD
+git status --short
+git fetch origin && git status -sb | head -1
 ```
 
-- **확인**: 7자 이상의 짧은 커밋 해시가 오류 없이 한 줄 출력된다.
-- **막히면 / 되돌리기**: `unknown revision or path not in the working tree` 오류가 나오면 아직 첫 커밋이 없는 상태이므로, 첫 커밋을 만든 뒤 다시 확인한다. 아직 서버 설정을 바꾸지 않았으므로 되돌릴 항목은 없다.
+- **확인**: 첫 명령은 아무것도 출력하지 않고(미커밋 변경 없음), 둘째 줄이 `## main...origin/main`으로 끝난다(앞서거나 뒤처짐 없음). GitHub 저장소 Actions 탭에서 최신 커밋의 `verify`가 초록이어야 한다.
+- **막히면**: 미커밋 변경이 있으면 커밋·푸시한 뒤 다시 확인한다. 저장소를 비공개로 바꿨다면 4-1단계의 배포 키 등록이 필요하다.
 
 ---
 
@@ -118,6 +119,33 @@ sh ops/we.sh install-daemons server
     ```bash
     sh ops/we.sh install-daemons --remove server
     ```
+
+---
+
+### 4-1단계 · 푸시 자동 배포 켜기 (`install-daemons autodeploy`, 약 5분)
+
+`com.ssamwrite.autodeploy`(wesvc, 1분 주기)를 등록한다. 매 회차는 아래 순서로 보고 하나라도 아니면 **기다리기만** 한다(실패로 세지 않음): 일시정지 파일 없음 → 평일 08:00~16:00 KST 아님 → 첫 배포 끝남 → 다른 배포 없음 → 실시간 연결 0 → GitHub `main`이 운영 커밋과 다르고 그 후손임 → GitHub 시험 `verify` 성공. 통과하면 `deploy.sh --git <sha>`가 4단계와 같은 6단계 배포를 한다. 4단계의 `we.sh deploy`가 서비스 계정용 `resource-guard` 사본을 `/Users/wesvc/writeessay-server/bin/`에 넣어 두며, 자동 배포 빌드도 그 사본으로 메모리 여유를 확인한다(사본이 없으면 빌드를 미루고 기다린다).
+
+```bash
+# 1) 등록 전에 일시정지해 두고, 무엇을 할지 먼저 본다
+sh ops/we.sh autodeploy pause
+sh ops/we.sh install-daemons autodeploy
+sh ops/we.sh autodeploy dry-run
+
+# 2) 이상 없으면 켠다
+sh ops/we.sh autodeploy resume
+sh ops/we.sh autodeploy status
+```
+
+- **확인**: `dry-run`이 `최신 상태(...) — 배포할 것 없음`(첫 배포 커밋 = GitHub main) 또는 배포 예정 커밋 목록을 보여 주고, `status`의 `운영 SHA`가 4단계에서 배포한 커밋이다. 이후 `logs/autodeploy.log`와 `state/autodeploy-status`(`sh ops/we.sh autodeploy status`)로 상태를 본다.
+- **저장소를 비공개로 바꿀 때**: 익명 읽기가 막히므로 읽기 전용 배포 키를 만든다. 비밀 키는 화면에 나오지 않고, 공개 키와 등록 명령만 나온다.
+  ```bash
+  sh ops/we.sh setup-deploy-key
+  # 출력된 공개 키 파일로(읽기 전용, 쓰기 권한 없음):
+  gh repo deploy-key add <공개키파일> -R djqanrudgns12/writingguidance -t macmini-wesvc
+  ```
+  비공개 저장소에서는 GitHub 시험 결과 조회도 익명으로 안 되므로, 그때는 `WE_AUTODEPLOY_REQUIRE_CI` 처리 방식을 다시 정한다(ADR-058).
+- **되돌리기**: `sh ops/we.sh install-daemons --remove autodeploy`(수동 `we.sh deploy`는 그대로 쓸 수 있다).
 
 ---
 
@@ -291,6 +319,19 @@ sh ops/we.sh status
 
 ### 2.1 평소 배포 (수업 시간 밖 전용 · 평일 08:00~16:00 KST 금지)
 
+**평소에는 푸시가 곧 배포다(ADR-058).** `main`에 푸시하면 GitHub 시험 `verify`(설치·운영 빌드·`npm run check`·단위 시험·운영 규칙 시험)가 돌고, 통과하면 맥미니가 다음 1분 회차에 배포한다. 수업 시간에 푸시하면 16:00 뒤, 수업방에 연결이 남아 있으면 연결이 끝난 뒤 배포한다. 결과는 SNS 메일(`[글방] deploy OK/FAILED <sha>`)과 `sh ops/we.sh autodeploy status`로 본다.
+
+| 상황 | 자동 배포가 하는 일 | 사람이 할 일 |
+|---|---|---|
+| `verify` 실패·취소 | 그 커밋은 배포하지 않고 알림 | 고친 커밋을 푸시 |
+| 배포 실패 1회 | 다음 회차에 한 번 더 | 없음 |
+| 같은 커밋 2회 실패 | 멈추고 알림(운영은 이전 판 유지) | 고친 커밋 푸시 또는 `sh ops/we.sh autodeploy retry` |
+| 강제 푸시·되감기(운영 커밋의 후손 아님) | 거부하고 알림 | 의도한 것이면 아래 수동 배포 |
+| 사람이 `rollback` 실행 | 자동으로 일시정지 | 고친 커밋 푸시 뒤 `sh ops/we.sh autodeploy resume` |
+| 잠깐 멈추고 싶을 때 | — | `sh ops/we.sh autodeploy pause` / `resume` |
+
+아래 수동 배포(`we.sh deploy`)는 첫 배포, 비상, 강제 푸시 뒤에만 쓴다.
+
 평일(월~금) **08:00~16:00 KST**(08:00~15:59)에는 배포할 수 없다. `ops/we.sh`와 `ops/scripts/deploy.sh`가 모두 한국 시각을 확인해 강제 우회 옵션 없이 거부하며, 실시간 웹소켓 연결(`connections > 0`)이 1개라도 남아 있어도 배포를 멈춘다.
 
 #### 1) 배포 전 사전 검사
@@ -350,7 +391,7 @@ sh ops/we.sh status
 
 **순서와 한계**: 운영 DB 마이그레이션(`4/6`) → 링크 전환·재시작(`5/6`) → 상태 확인(`6/6`) 순서다. 상태 확인 실패로 앱이 돌아가도 **성공한 마이그레이션과 그 뒤의 DB 기록은 그대로 남는다**. 파일별 트랜잭션이므로 뒤 파일이 실패해도 먼저 성공한 파일까지 취소되지 않는다. `3/6`에서 더하기 전용 SQL과 **새 스키마에서 직전 릴리스 기동**을 먼저 검사해 호환되지 않는 배포를 막는다. `we:allow-destructive`는 파괴적 SQL 문장 차단만 우회하며, 직전 릴리스 기동 검사까지 생략하지 않는다. 다만 빈 임시 DB를 쓰므로 실제 행에 따른 실패·데이터 손실·옛 화면의 모든 동작까지 보장하지 않는다. 이 주석을 일반 배포 해결책으로 쓰지 않는다. 첫 배포는 이전 릴리스가 없어 자동 복귀도 할 수 없다. 이번 보강에서 이 실행 순서는 바꾸지 않았다.
 
-**별도 보강이 필요한 실패 전달**: 현재 `deploy.sh`의 `4/6`은 마이그레이션 출력을 `tee`에 연결하고 POSIX `sh`에서 파이프 마지막 명령의 성공 여부를 사용한다. 따라서 마이그레이션 프로세스만 실패한 경우 중단을 보장하지 못한다. 위 실패 표는 실패를 감지했을 때의 동작이며, 실제 마이그레이션 오류가 보이면 다음 단계를 성공으로 간주하지 말고 외부 연결을 닫은 뒤 로그와 `db-check`를 확인한다. 이 오류 전달 보강은 별도 코드 수정 대상으로 남긴다.
+**마이그레이션 실패 전달**: `4/6`은 마이그레이션 출력을 파일로 받은 뒤 종료값을 따로 보고, 실패하면 `app` 링크를 바꾸지 않고 멈춘다(2026-11-12 보강, 이전의 `| tee` 파이프는 실패를 숨길 수 있었다).
 
 ---
 

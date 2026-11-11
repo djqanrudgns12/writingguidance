@@ -1657,7 +1657,7 @@ cwd: /Users/bodyking/Desktop/Architecture/writeessay
 
 ### 15.3 사용자가 직접 할 단계 (U-19, 약 2시간 + 관문)
 
-1. **저장소 (10분)**: 배포 방식을 고른다(U-13). GitHub 비공개 저장소 + 읽기 전용 배포 키(rollingthunder 방식), 또는 GitHub 없이 소유자가 만든 `git bundle`을 서비스 계정이 읽는 방식.
+1. **저장소 (10분)**: 배포 방식을 고른다(U-13). GitHub 비공개 저장소 + 읽기 전용 배포 키(rollingthunder 방식), 또는 GitHub 없이 소유자가 만든 `git bundle`을 서비스 계정이 읽는 방식. **2026-11-12 결정(ADR-058)**: GitHub `djqanrudgns12/writingguidance` + 푸시 자동 배포. 첫 배포만 `git bundle`(`we.sh deploy --init`), 그 뒤는 `com.ssamwrite.autodeploy`.
 2. **서버 준비 (10분)**: `sudo sh ops/we.sh setup-host`. 확인: `tmutil isexcluded /Users/wesvc/writeessay-server`가 `[Excluded]`.
 3. **비밀값 (10분)**: `we.sh init-secrets`, `we.sh save-secret llm-api-key`(운영 키), `we.sh save-secret teacher-start-code`. Anthropic 콘솔에서 키 두 개(운영·개발)를 만들고 월 한도 20달러. 개발 키는 소유자가 `.local/dev.env`에 직접 넣는다(평가 P4-20용).
 4. **첫 배포 (15분)**: `we.sh deploy` → `sudo sh ops/we.sh install-daemons server`. 확인: `we.sh status`의 맥 안 항목.
@@ -1672,6 +1672,7 @@ cwd: /Users/bodyking/Desktop/Architecture/writeessay
 - **금지창**: 월~금 08:00~16:00(한국 시각)에는 배포, `brew upgrade`(node@24·cloudflared는 rollingthunder와 같은 설치), macOS 업데이트, 재부팅을 하지 않는다. `deploy.sh`는 금지창이거나 실시간 연결이 남아 있으면 거부한다(장애 복구용 재시작·되돌리기는 예외).
 - **실행**: 소유자 세션에서 `resource-guard run --profile build -- sudo -u wesvc -H sh …/deploy.sh <ref>` (서비스 계정은 소유자 홈의 resource-guard를 부를 수 없어서).
 - **순서**: 잠금 → `releases/<sha>` 받기 → `npm ci`·빌드(실패면 그대로 멈춤) → 마이그레이션 사전 검사 → 이전 릴리스 기록 → 링크 교체 → SIGTERM(launchd가 다시 띄움, 10~20초 끊김, 기기는 자동 재연결) → 서버가 시작하며 `PRAGMA quick_check`와 대기 마이그레이션 적용 → 60초 안에 새 릴리스·DB·`wss` 확인 → 실패면 링크 복귀·재시작·메일.
+- **푸시 자동 배포(ADR-058)**: `com.ssamwrite.autodeploy`(wesvc, 1분)가 GitHub `main`을 보고, 운영 커밋의 후손이고 GitHub Actions `verify`가 성공한 커밋만 `deploy.sh --git <sha>`로 배포한다. 금지창·활성 연결·잠금이면 기다린다(종료 코드 75, 실패로 세지 않음). 같은 커밋 2회 실패면 멈추고 알림, 사람이 되돌리면 일시정지. 자동 배포는 소유자의 resource-guard를 거치지 않는다(수업 시간 밖·연결 0일 때만 빌드).
 - **SQLite**: `data/`는 릴리스 밖이라 배포가 건드리지 않는다. 파일이 없으면 새로 만들지 않고 멈춘다(처음 한 번만 `--init`). 배포 전 사본도 만들지 않는다(백업 금지).
 - **되돌리기** `rollback.sh`: 링크만 이전 릴리스로 → 재시작 → 확인. DB는 그대로라, 옛 앱이 더 높은 스키마 판에서도 뜨도록 마이그레이션을 "더하기만" 한다(열 삭제·이름 바꾸기 금지, 새 열은 기본값 있음). **릴리스마다 "새 스키마에서 이전 릴리스 시작" 시험**을 배포 사전 검사에 넣어 이 약속을 기계로 확인한다. 고칠 것은 새 마이그레이션으로.
 

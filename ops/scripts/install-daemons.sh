@@ -1,5 +1,5 @@
 #!/bin/sh
-# 쌤유 글방 launchd 시스템 데몬 설치·제거 스크립트(관리자 권한) — com.ssamwrite.{server,tunnel,watch} 세 항목만 다룬다.
+# 쌤유 글방 launchd 시스템 데몬 설치·제거 스크립트(관리자 권한) — com.ssamwrite.* 허용 항목만 다룬다.
 #
 # 왜 필요한가:
 #   - FileVault 잠금 해제 직후 GUI 로그인 없이 서비스 계정(wesvc)으로 앱 서버(4460)·터널(20242)·하트비트를 기동한다(PLAN §15.2).
@@ -10,8 +10,8 @@ set -eu
 usage() {
   cat <<'EOF'
 사용법:
-  sh ops/we.sh install-daemons <server|tunnel|watch ...>
-  sh ops/we.sh install-daemons --remove <server|tunnel|watch ...>
+  sh ops/we.sh install-daemons <server|tunnel|watch|autodeploy ...>
+  sh ops/we.sh install-daemons --remove <server|tunnel|watch|autodeploy ...>
 
 launchd 시스템 데몬(/Library/LaunchDaemons/com.ssamwrite.<항목>.plist)을 등록하거나 제거합니다.
 
@@ -19,6 +19,7 @@ launchd 시스템 데몬(/Library/LaunchDaemons/com.ssamwrite.<항목>.plist)을
   server    글방 Node 24 운영 서버 (127.0.0.1:4460, Interactive, ExitTimeOut 30)
   tunnel    전용 cloudflared 터널 (메트릭 127.0.0.1:20242, Interactive, public-off 스위치 연동)
   watch     5분 주기 전체 경로 하트비트 (StartInterval 300 -> heartbeat.sh)
+  autodeploy 1분 주기 CI 통과 커밋 자동 배포(첫 배포 완료 후 등록)
 
 옵션:
   --remove      지정한 com.ssamwrite.<항목> 데몬을 내리고 plist를 삭제합니다.
@@ -52,15 +53,24 @@ if [ "${1:-}" = "--remove" ]; then
   remove=1
   shift
 fi
-[ $# -gt 0 ] || die "대상 항목을 지정하세요: server | tunnel | watch"
+[ $# -gt 0 ] || die "대상 항목을 지정하세요: server | tunnel | watch | autodeploy"
 
-# 먼저 모든 인자가 허용된 세 이름 안에 있는지 검증한다.
+# 먼저 모든 인자가 허용된 이름 안에 있는지 검증한다.
 for name in "$@"; do
   case "$name" in
-    server|tunnel|watch) ;;
-    *) die "알 수 없는 데몬 항목입니다: '$name' (허용: server tunnel watch)" ;;
+    server|tunnel|watch|autodeploy) ;;
+    *) die "알 수 없는 데몬 항목입니다: '$name' (허용: server tunnel watch autodeploy)" ;;
   esac
 done
+
+# 일부만 설치한 뒤 실패하지 않도록 자동 배포의 선행 조건도 변경 전에 검사한다.
+if [ "$remove" = "0" ]; then
+  for name in "$@"; do
+    if [ "$name" = "autodeploy" ]; then
+      [ -f "$we_home/app/.we-commit" ] || die "첫 배포 전입니다 — 먼저 sh ops/we.sh deploy --init 을 실행하세요"
+    fi
+  done
+fi
 
 for name in "$@"; do
   label="com.ssamwrite.$name"

@@ -1,8 +1,8 @@
 #!/bin/sh
-# 쌤유 글방 운영 배포 스크립트(서비스 계정 wesvc) — git bundle 빌드·사전 호환 검사·마이그레이션·원자적 전환·자동 되돌리기를 수행한다.
+# 쌤유 글방 운영 배포 스크립트(서비스 계정 wesvc) — 번들 또는 로컬 bare 캐시의 커밋으로 기존 배포 절차를 수행한다.
 #
 # 왜 필요한가:
-#   - GitHub 원격 없이 소유자가 넘긴 git bundle만으로 독립된 releases/<sha>를 만들고 검증한 뒤 심볼릭 링크로 무중단 전환한다(U-13 ②, PLAN §15.4).
+#   - 소유자의 git bundle 또는 CI를 통과해 받아 둔 커밋으로 독립된 releases/<sha>를 만들고 검증한 뒤 전환한다.
 #   - 되돌리기 때 DB는 그대로 남으므로, 앱을 바꾸기 전에 "새 스키마가 적용된 임시 SQLite에서 이전 릴리스가 기동되는지"를 기계로 증명한다.
 # 안전장치:
 #   - 평일 08:00~16:00 KST 수업 시간에는 강제 옵션 없이 무조건 거부한다.
@@ -15,6 +15,7 @@ usage() {
 사용법:
   sh ops/we.sh deploy [ref] [--init] [--bundle <번들파일>]
   sudo -u wesvc -H sh ops/scripts/deploy.sh [--bundle <번들파일>] [--init] [ref]
+  sh ops/scripts/deploy.sh --git <40자 SHA>
 
 소유자가 만든 git bundle을 받아 새 releases/<sha>에 풀고:
   1) 평일 08:00~16:00 KST 금지창 및 실시간 연결 0건 확인 (강제 우회 옵션 없음)
@@ -28,6 +29,7 @@ usage() {
   ref                  번들 안에서 배포할 참조 이름 (기본: HEAD)
   --bundle <경로>      읽을 git bundle 경로 (기본: /Users/wesvc/writeessay-server/bundles/incoming.bundle)
   --init               운영 SQLite 파일이 아직 없을 때 최초 1회 생성을 허용합니다.
+  --git <40자 SHA>     repo-cache에 이미 받아 둔 커밋을 배포합니다(번들·ref와 함께 쓸 수 없음).
   -h, --help           이 도움말을 보여 줍니다.
 EOF
 }
@@ -35,6 +37,7 @@ EOF
 bundle_path=""
 allow_init=0
 target_ref=""
+git_sha=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -51,6 +54,13 @@ while [ $# -gt 0 ]; do
       allow_init=1
       shift
       ;;
+    --git)
+      [ $# -ge 2 ] || { echo "ERROR: --git 뒤에 40자 SHA를 주세요" >&2; exit 1; }
+      git_sha="$2"
+      [ "${#git_sha}" -eq 40 ] || { echo "ERROR: --git SHA는 40자여야 합니다" >&2; exit 1; }
+      case "$git_sha" in *[!0-9a-f]*) echo "ERROR: --git SHA 형식이 올바르지 않습니다" >&2; exit 1 ;; esac
+      shift 2
+      ;;
     --*)
       echo "ERROR: 지원하지 않는 옵션입니다: $1 (금지창 강제 우회 옵션은 제공하지 않습니다. --help 참고)" >&2
       exit 1
@@ -63,20 +73,36 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+if [ -n "$git_sha" ] && { [ -n "$bundle_path" ] || [ -n "$target_ref" ]; }; then
+  echo "ERROR: --git은 --bundle 또는 ref와 함께 쓸 수 없습니다" >&2
+  exit 1
+fi
 target_ref="${target_ref:-HEAD}"
 
 here="$(cd "$(dirname "$0")" && pwd -P)"
 . "$here/env.sh"
 
-[ "$(id -un)" = "$WE_SERVICE_USER" ] || we_die "$WE_SERVICE_USER 계정으로 실행해야 합니다: sh ops/we.sh deploy"
+we_require_service_user deploy
 
 # 1. 평일 수업 시간(08:00~16:00 KST) 무조건 거부 — 강제 우회 옵션 없음(PLAN §15.4).
 if we_is_school_hours; then
-  we_die "평일 08:00~16:00 KST(수업 시간 금지창)에는 배포할 수 없습니다 (현재 $(TZ=Asia/Seoul date '+%F %T KST'))"
+  echo "ERROR: 평일 08:00~16:00 KST(수업 시간 금지창)에는 배포할 수 없습니다 (현재 $(TZ=Asia/Seoul date '+%F %T KST'))" >&2
+  exit 75
 fi
 
-# 2. 활성 실시간 웹소켓 연결이 남아 있으면 거부(PLAN §15.4).
-if internal_json="$(curl -fsS --max-time 3 "http://127.0.0.1:$WE_PORT/internal/health" 2>/dev/null)"; then
+# 2. 긴 빌드 도중 연결이 생길 수도 있어 마이그레이션 직전에도 같은 조건으로 확인한다.
+we_check_connections() {
+  if [ "${WE_OPS_TEST_MODE:-0}" = "1" ] && [ -n "${WE_AUTODEPLOY_HEALTH_CMD:-}" ]; then
+    internal_json="$(sh "$WE_AUTODEPLOY_HEALTH_CMD")" || internal_json=""
+  else
+    internal_json="$(curl -fsS --max-time 3 "http://127.0.0.1:$WE_PORT/internal/health" 2>/dev/null)" || internal_json=""
+  fi
+  if [ -z "$internal_json" ]; then
+    # 서버가 아직 없는 첫 수동 배포는 허용한다. 자동 배포는 상태를 모르면 기다린다.
+    [ "${WE_AUTODEPLOY_RUN:-0}" = "1" ] || return 0
+    echo "ERROR: 실시간 연결 상태를 확인할 수 없어 배포를 기다립니다" >&2
+    exit 75
+  fi
   active_conn="$(printf '%s' "$internal_json" | "$NODE_BIN" -e '
     let s = "";
     process.stdin.setEncoding("utf8");
@@ -84,20 +110,35 @@ if internal_json="$(curl -fsS --max-time 3 "http://127.0.0.1:$WE_PORT/internal/h
     process.stdin.on("end", () => {
       try {
         const j = JSON.parse(s);
-        process.stdout.write(String(typeof j.connections === "number" ? j.connections : 0));
+        process.stdout.write(String(Number.isSafeInteger(j.connections) && j.connections >= 0 ? j.connections : -1));
       } catch {
-        process.stdout.write("0");
+        process.stdout.write("-1");
       }
     });
   ')"
-  if [ "${active_conn:-0}" -gt 0 ]; then
-    we_die "현재 실시간 연결(${active_conn}개)이 남아 있어 배포를 멈춥니다. 수업 종료 뒤 다시 실행하세요."
+  if [ "$active_conn" -lt 0 ]; then
+    echo "ERROR: 실시간 연결 상태 응답을 확인할 수 없어 배포를 기다립니다" >&2
+    exit 75
   fi
-fi
+  if [ "${active_conn:-0}" -gt 0 ]; then
+    echo "ERROR: 현재 실시간 연결(${active_conn}개)이 남아 있어 배포를 멈춥니다. 수업 종료 뒤 다시 실행하세요." >&2
+    exit 75
+  fi
+}
+we_check_connections
 
 # 3. 원자적 잠금 (종료 코드 75 = 다른 작업 진행 중).
 if ! we_lock deploy; then
   echo "ERROR: 다른 배포 또는 되돌리기가 이미 실행 중입니다" >&2
+  exit 75
+fi
+if [ "${WE_AUTODEPLOY_RUN:-0}" = "1" ] && [ -e "$WE_HOME/AUTO_DEPLOY_PAUSED" ]; then
+  echo "ERROR: 자동 배포가 일시정지되어 있습니다" >&2
+  exit 75
+fi
+if [ "${WE_AUTODEPLOY_RUN:-0}" = "1" ] && \
+   [ "$(cat "$WE_APP/.we-commit" 2>/dev/null || true)" != "${WE_AUTODEPLOY_BASE:-}" ]; then
+  echo "ERROR: 운영 커밋이 바뀌어 다음 회차에 다시 확인합니다" >&2
   exit 75
 fi
 
@@ -111,35 +152,40 @@ if [ ! -f "$WE_DB_PATH" ] && [ "$allow_init" != "1" ]; then
   we_die "운영 DB 파일($WE_DB_PATH)이 없습니다. 최초 1회 배포일 때만 --init 옵션을 붙이세요(PLAN §15.4)."
 fi
 
-bundle_path="${bundle_path:-$WE_BUNDLES/incoming.bundle}"
-[ -s "$bundle_path" ] || we_die "git bundle 파일이 없습니다: $bundle_path (sh ops/we.sh deploy 로 실행하세요)"
+cache="$WE_HOME/repo-cache"
+if [ -n "$git_sha" ]; then
+  echo "== 1/6 로컬 repo-cache 커밋 검증"
+  full_sha="$(git -C "$cache" rev-parse --verify "$git_sha^{commit}" 2>/dev/null)" \
+    || we_die "repo-cache에 커밋이 없습니다: $git_sha"
+  [ "$full_sha" = "$git_sha" ] || we_die "커밋 해시가 일치하지 않습니다"
+else
+  bundle_path="${bundle_path:-$WE_BUNDLES/incoming.bundle}"
+  [ -s "$bundle_path" ] || we_die "git bundle 파일이 없습니다: $bundle_path (sh ops/we.sh deploy 로 실행하세요)"
+  echo "== 1/6 git bundle 검증 및 커밋 추출"
+  git bundle verify "$bundle_path" >/dev/null 2>&1 || we_die "유효하지 않거나 불완전한 git bundle입니다: $bundle_path"
 
-mkdir -p "$WE_RELEASES" "$WE_LOGS" "$WE_STATE" "$WE_DATA"
-
-echo "== 1/6 git bundle 검증 및 커밋 추출"
-git bundle verify "$bundle_path" >/dev/null 2>&1 || we_die "유효하지 않거나 불완전한 git bundle입니다: $bundle_path"
-
-resolved_line="$(git bundle list-heads "$bundle_path" | awk -v want="$target_ref" '
+  resolved_line="$(git bundle list-heads "$bundle_path" | awk -v want="$target_ref" '
   $2 == want || $2 == ("refs/heads/" want) || $2 == ("refs/tags/" want) || $1 == want {
     print $1, $2; exit
   }
 ')"
-if [ -z "$resolved_line" ] && [ "$target_ref" = "HEAD" ]; then
-  resolved_line="$(git bundle list-heads "$bundle_path" | head -n 1)"
-fi
-[ -n "$resolved_line" ] || we_die "번들 안에서 참조 '$target_ref'를 찾지 못했습니다"
+  if [ -z "$resolved_line" ] && [ "$target_ref" = "HEAD" ]; then
+    resolved_line="$(git bundle list-heads "$bundle_path" | head -n 1)"
+  fi
+  [ -n "$resolved_line" ] || we_die "번들 안에서 참조 '$target_ref'를 찾지 못했습니다"
 
-full_sha="$(printf '%s\n' "$resolved_line" | awk '{print $1}')"
-bundle_ref="$(printf '%s\n' "$resolved_line" | awk '{print $2}')"
-case "$full_sha" in
-  *[!0-9a-f]*|"") we_die "커밋 해시 형식이 올바르지 않습니다: $full_sha" ;;
-esac
+  full_sha="$(printf '%s\n' "$resolved_line" | awk '{print $1}')"
+  bundle_ref="$(printf '%s\n' "$resolved_line" | awk '{print $2}')"
+  case "$full_sha" in
+    *[!0-9a-f]*|"") we_die "커밋 해시 형식이 올바르지 않습니다: $full_sha" ;;
+  esac
 
-cache="$WE_HOME/repo-cache"
-if [ ! -d "$cache/objects" ]; then
-  git init -q --bare "$cache"
+  if [ ! -d "$cache/objects" ]; then
+    git init -q --bare "$cache"
+  fi
+  git -C "$cache" fetch -q "$bundle_path" "+$bundle_ref:refs/deploy/target"
 fi
-git -C "$cache" fetch -q "$bundle_path" "$bundle_ref:refs/deploy/target"
+mkdir -p "$WE_RELEASES" "$WE_LOGS" "$WE_STATE" "$WE_DATA"
 sha="$(git -C "$cache" rev-parse --short=12 "$full_sha")"
 dest="$WE_RELEASES/$sha"
 deploy_log="$WE_LOGS/deploy-$sha.log"
@@ -362,6 +408,12 @@ mjs
 tail -n 1 "$deploy_log"
 
 echo "== 4/6 운영 DB 마이그레이션 ($WE_DB_PATH)"
+# 빌드가 수업 시간까지 이어졌거나 그사이 연결이 생겼으면 운영 DB·링크를 바꾸지 않는다.
+if we_is_school_hours; then
+  echo "ERROR: 평일 08:00~16:00 KST(수업 시간 금지창)에는 배포할 수 없습니다 (현재 $(TZ=Asia/Seoul date '+%F %T KST'))" >&2
+  exit 75
+fi
+we_check_connections
 created_db=0
 [ ! -f "$WE_DB_PATH" ] && created_db=1
 
@@ -402,6 +454,11 @@ if [ "$created_db" = "1" ] && [ -f "$WE_DB_PATH" ]; then
 fi
 
 echo "== 5/6 심볼릭 링크 전환 및 운영 서버 재시작"
+we_mark_commit() {
+  # 실패한 릴리스에 성공 SHA 표시를 새로 남기지 않는다. 배포 잠금을 잡은 동안 기록한다.
+  printf '%s\n' "$full_sha" > "$dest/.we-commit.tmp"
+  mv "$dest/.we-commit.tmp" "$dest/.we-commit"
+}
 if [ -n "$prev" ] && [ "$prev" != "$dest" ]; then
   printf '%s\n' "$prev" > "$WE_STATE/previous-release.tmp"
   mv "$WE_STATE/previous-release.tmp" "$WE_STATE/previous-release"
@@ -419,6 +476,7 @@ tunnel_plist="/Library/LaunchDaemons/com.ssamwrite.tunnel.plist"
 
 if [ ! -f "$server_plist" ]; then
   echo "== 6/6 첫 배포 준비 완료 (아직 launchd 데몬 등록 전)"
+  we_mark_commit
   printf 'releases/%s\n' "$sha" > "$WE_STATE/current-release"
   printf '%s %s\n' "$full_sha" "$(date '+%F %T')" > "$WE_STATE/last-deploy"
   [ "$bundle_path" = "$WE_BUNDLES/incoming.bundle" ] && rm -f "$bundle_path"
@@ -464,13 +522,14 @@ if [ "$ok" != "1" ]; then
   if [ -n "$prev" ] && [ "$prev" != "$dest" ] && [ -d "$prev" ]; then
     echo "자동 되돌리기 실행: $prev" >&2
     sh "$here/rollback.sh" --from-deploy "$prev" || true
-    we_notify "[Writeessay] deploy FAILED $sha (rolled back)" "healthcheck failed; rolled back to $prev"
+    [ "${WE_AUTODEPLOY_RUN:-0}" = "1" ] || we_notify "[Writeessay] deploy FAILED $sha (rolled back)" "healthcheck failed; rolled back to $prev"
     we_die "새 릴리스($sha) 상태 확인 실패로 이전 릴리스($prev)로 자동 되돌렸습니다 (DB는 유지됨)"
   fi
-  we_notify "[Writeessay] deploy FAILED $sha" "healthcheck failed; no previous release to roll back"
+  [ "${WE_AUTODEPLOY_RUN:-0}" = "1" ] || we_notify "[Writeessay] deploy FAILED $sha" "healthcheck failed; no previous release to roll back"
   we_die "새 릴리스($sha) 상태 확인 실패 (되돌릴 이전 릴리스 없음)"
 fi
 
+we_mark_commit
 printf 'releases/%s\n' "$sha" > "$WE_STATE/current-release"
 printf '%s %s\n' "$full_sha" "$(date '+%F %T')" > "$WE_STATE/last-deploy"
 [ "$bundle_path" = "$WE_BUNDLES/incoming.bundle" ] && rm -f "$bundle_path"
@@ -485,5 +544,5 @@ ls -1t "$WE_RELEASES" 2>/dev/null | tail -n +"$((WE_RELEASES_KEEP + 1))" | while
   rm -rf "$old_dir"
 done
 
-we_notify "[Writeessay] deploy OK $sha" "deployed releases/$sha"
+[ "${WE_AUTODEPLOY_RUN:-0}" = "1" ] || we_notify "[Writeessay] deploy OK $sha" "deployed releases/$sha"
 echo "배포 완료: releases/$sha"

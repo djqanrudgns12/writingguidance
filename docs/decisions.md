@@ -573,3 +573,14 @@
 - **P5-5b 2차 검토(Codex) 11건**: 세 갈래(서버·기기 실시간·입장 흐름) Claude 서브에이전트가 재현 시험 먼저 쓰고 고친다(`docs/briefs/P5-5b-fix.md`).
 - **문구 검토 반영(P5-2, Antigravity 초3 기준 검토)**: 학생이 다음 행동을 알 수 없던 오류 문구 5개(E_ROOM_CLOSED·E_NICK_TAKEN·E_FORBIDDEN·E_AUTH·E_VERSION)를 PRD 12.4와 함께 고쳤고, 닫힘 띠·맞춤법 자리 못 찾음·이어 쓰기 띠 받침 조사·PIN 잠김 안내 등 15곳을 고쳤다. PRD에 고정된 학생 안내(오프라인 띠, 동의 안내 13.1, 노래 분위기 이름 F-07, 개인 모드 안내)는 그대로 두고 사용자 판단으로 넘긴다(`docs/reviews/P5-2_copy_review.md` §2 중·하).
 - **쓰기 화면 옆 결과 패널 기준 폭(P5-4 시각 재검수)**: 900~1199px에서 옆 패널이 열리면 상단 바를 두 줄로 나눠 제목 칸을 지키고 AI 칩은 짧은 이름으로 한 줄(`layout.ts` `SIDE_PANEL_ROOMY_QUERY = (min-width: 1200px)`). 900px 제목 칸 39px → 526px. 교사 대시보드 900px 미만은 이어 쓰기 요청 띠를 한 줄 요약으로 접는다. 닫힌 방은 AI 칩·다시 받기를 기기에서도 막는다(서버는 이미 `E_ROOM_CLOSED`).
+
+## ADR-058 · GitHub 원격과 푸시 자동 배포 (2026-11-12)
+
+- **사용자 결정(U-13)**: GitHub `djqanrudgns12/writingguidance`(2026-11-12 기준 **공개** 저장소)를 원격으로 쓰고, "커밋·푸시하면 맥미니로 자동 배포"한다. rollingthunder의 방식(`../rollingthunder/wiki/decisions/푸시-자동-배포.md`)을 따른다. 기본 브랜치 `main`.
+- **pull 방식**: launchd 데몬 `com.ssamwrite.autodeploy`(wesvc, 1분)가 `git ls-remote`로 main을 보고, 새 커밋이면 `repo-cache`로 받아 기존 `deploy.sh`(빌드 → 사전 호환 검사 → 마이그레이션 → 링크 교체 → 헬스체크 → 실패 시 되돌림)를 `--git <sha>`로 부른다. 웹훅·self-hosted 러너는 쓰지 않는다(들어오는 연결을 만들지 않고, 저장소 코드가 운영 셸을 열지 않게). `git bundle` 수동 배포는 그대로 남긴다(첫 배포·비상용).
+- **읽기 자격**: 공개 저장소라 익명 HTTPS로 읽는다. 비공개로 바꾸면 `we.sh setup-deploy-key`로 wesvc 전용 ed25519 **읽기 전용 배포 키**를 만들어 등록하고, GitHub 호스트 키는 공식 지문으로 고정한다.
+- **시험 관문(rollingthunder와 다른 점)**: GitHub Actions `ci` 워크플로의 `verify` 작업(설치 → 운영 빌드 → `npm run check` → 단위·통합 시험)이 **성공한 커밋만** 배포한다. 진행 중이면 기다리고, 실패하면 배포하지 않고 알린다. 화면 시험(`e2e` 작업)은 관문에 넣지 않는다(길고 브라우저를 받는다, 결과는 참고). 맥미니에서는 시험을 다시 돌리지 않는다(빌드만, 이웃 서비스 자원 보호).
+- **수업 시간 금지창 유지**: 평일 08:00~16:00 KST에 푸시하면 16:00 뒤 첫 회차에 배포한다. 활성 실시간 연결이 있으면 끝날 때까지 기다린다. 둘 다 실패로 세지 않는다(`deploy.sh`가 75를 돌려줌). rollingthunder는 수업 중 푸시도 바로 반영하지만, 글방은 수업 중 학생이 쓰고 있는 글이 있어 PLAN §15.4 원칙을 지킨다.
+- **안전장치**: 앞으로만(운영 커밋의 후손일 때만, 강제 푸시는 거부 → 수동 배포), 같은 커밋 2회 실패 시 멈춤(`--retry` 또는 새 커밋으로 재개), 일시정지 파일 `AUTO_DEPLOY_PAUSED`(`we.sh autodeploy pause|resume`), 사람이 `rollback`하면 자동으로 일시정지(되돌린 커밋을 곧바로 다시 올리지 않게), 배포 잠금 공유, 첫 배포(`--init`)는 자동으로 하지 않음. 결과는 기존 SNS 알림(`we_notify`).
+- **감수한 것**: GitHub 계정이 털리면 그 코드가 시험만 통과하면 운영에 올라간다(rollingthunder·Vercel과 같은 신뢰 경계). 공개 저장소라 운영 구성(서비스 계정·포트·CloudFront 배포 ID)이 공개된다 — 비밀값은 없고 원본은 CloudFront 비밀 머리·Cloudflare WAF로 잠겨 있으나, 비공개 전환을 권한다(U-13 메모).
+- **자원 보호**: 서비스 계정은 소유자 홈(권한 700)의 `resource-guard`를 읽을 수 없다. 수동 배포(`we.sh deploy`)가 그 사본을 `/Users/wesvc/writeessay-server/bin/resource-guard`에 두고, 자동 배포 빌드는 그 사본으로 `--profile build` 메모리 입장 검사를 거친다. 사본은 계정별 잠금이라 소유자 쪽 고부하 작업과 줄을 서지는 않는다(가드 자체를 계정 공용으로 바꾸는 것은 이 저장소 밖 일). 사본이 없거나 75를 돌려주면 빌드를 미루고 기다린다. 수업 시간 밖·연결 0일 때만 빌드한다. 맥미니에서 시험은 다시 돌리지 않는다(GitHub에서 끝남). Codex 구현(P6-autodeploy, 운영 규칙 시험 32개 `tests/ops/autodeploy.test.mjs`는 GitHub `verify`에도 넣었다).

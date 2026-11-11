@@ -17,7 +17,7 @@ usage() {
 
 관리자 권한(내부에서 sudo 호출):
   setup-host                        전용 계정 wesvc · 폴더(700) · Time Machine 제외 · 로그 회전 준비
-  install-daemons <항목...>         launchd 등록: server | tunnel | watch (제거: --remove <항목...>)
+  install-daemons <항목...>         launchd 등록: server | tunnel | watch | autodeploy (제거: --remove <항목...>)
 
 소유자 계정 직접 실행(관리용 비밀은 서비스 계정에 두지 않음):
   origin-secret [--rotate]          원본 잠금 값(64자) 생성·복사, 회전 시 이전 값은 .prev로 보존(화면 미출력)
@@ -39,6 +39,9 @@ usage() {
   heartbeat                         5분 감시 1회 수동 실행(전체 성공 시에만 EndToEndOK=1)
   status                            릴리스 목록·서버 볼륨 공간·터널·공개 경로·감시 설정 보기
   public <on|off|status>            외부 터널 연결만 켜기·끄기(맥 안 서버 4460과 데이터는 유지)
+  autodeploy <status|dry-run|retry|pause|resume|run>
+                                    CI 통과 커밋 자동 배포 조회·미리 보기·재시도·일시정지·재개·1회 확인
+  setup-deploy-key                  선택 사항: GitHub 읽기 전용 SSH 키 준비·공개 키 등록 안내
   logs [server|tunnel|watch|deploy|build] [--follow|-f]
                                     최근 운영 로그 확인, --follow로 계속 추적(Ctrl+C 종료)
 
@@ -170,7 +173,8 @@ case "$cmd" in
     kst_now="$(TZ=Asia/Seoul date '+%u:%H')"
     case "$kst_now" in
       [1-5]:08|[1-5]:09|[1-5]:1[0-5])
-        die "평일 08:00~16:00 KST(수업 시간 금지창)에는 배포할 수 없습니다 (강제 실행 불가)"
+        echo "ERROR: 평일 08:00~16:00 KST(수업 시간 금지창)에는 배포할 수 없습니다 (강제 실행 불가)" >&2
+        exit 75
         ;;
     esac
 
@@ -251,12 +255,21 @@ case "$cmd" in
     cleanup_bundle
 
     # 현재 저장소의 최신 deploy.sh·rollback.sh·healthcheck.mjs·env.sh를 bootstrap에도 갱신해 첫 배포 전에도 최신 본문을 쓴다.
-    for sfile in env.sh deploy.sh rollback.sh restart.sh rotate-key.sh db-check.sh healthcheck.mjs heartbeat.sh status.sh public.sh init-secrets.sh save-secret.sh; do
+    for sfile in env.sh deploy.sh rollback.sh restart.sh rotate-key.sh db-check.sh healthcheck.mjs heartbeat.sh status.sh public.sh init-secrets.sh save-secret.sh auto-deploy.sh setup-deploy-key.sh; do
       as_svc sh -c 'umask 077; mkdir -p "$1"; cat > "$1/$2.tmp" && chmod 700 "$1/$2.tmp" && mv "$1/$2.tmp" "$1/$2"' \
         sh "$we_home/bootstrap/scripts" "$sfile" < "$here/scripts/$sfile"
     done
 
-    sdir="$(svc_scripts_dir deploy.sh)"
+    # 자동 배포가 쓸 resource-guard 사본(서비스 계정은 소유자 홈을 못 읽음, ADR-058). 없으면 자동 배포는 빌드를 미루고 기다린다.
+    if [ -x "$rg_bin" ]; then
+      rg_src="$(cd "$(dirname "$rg_bin")" && cd "$(dirname "$(readlink "$rg_bin" || echo "$rg_bin")")" && pwd -P)/$(basename "$(readlink "$rg_bin" || echo "$rg_bin")")"
+      as_svc sh -c 'umask 077; mkdir -p "$1"; cat > "$1/resource-guard.tmp" && chmod 700 "$1/resource-guard.tmp" && mv "$1/resource-guard.tmp" "$1/resource-guard"' \
+        sh "$we_home/bin" < "$rg_src"
+    fi
+
+    # 소유자가 명시한 수동 배포는 방금 갱신한 사본을 쓴다. 기존 릴리스의 옛 deploy.sh로 실행하면
+    # 이번 기능을 처음 도입할 때 .we-commit이 빠져 자동 배포 데몬을 등록할 수 없다.
+    sdir="$we_home/bootstrap/scripts"
     set -- --bundle "$dest_bundle" "$deploy_ref"
     [ -n "$init_flag" ] && set -- "$@" "$init_flag"
 
@@ -266,7 +279,19 @@ case "$cmd" in
       exec sudo -u "$svc" -H sh "$sdir/deploy.sh" "$@"
     fi
     ;;
-  init-secrets|save-secret|rotate-key|db-check|rollback|restart|heartbeat|status|public)
+  autodeploy)
+    action="${1:-status}"
+    [ $# -le 1 ] || die "autodeploy 인자는 하나만 지정하세요"
+    case "$action" in
+      help|-h|--help) exec sh "$here/scripts/auto-deploy.sh" --help ;;
+      status|dry-run|retry|pause|resume|run) ;;
+      *) die "autodeploy 명령: status | dry-run | retry | pause | resume | run" ;;
+    esac
+    need_svc
+    sdir="$(svc_scripts_dir auto-deploy.sh)"
+    exec sh -c 'cd / && exec sudo -u "$0" -H sh "$1" "$2"' "$svc" "$sdir/auto-deploy.sh" "--$action"
+    ;;
+  init-secrets|save-secret|rotate-key|db-check|rollback|restart|heartbeat|status|public|setup-deploy-key)
     for arg in "$@"; do
       case "$arg" in
         -h|--help|help)

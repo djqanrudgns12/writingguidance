@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 검증된 운영 릴리스의 스크립트로만 확인한다. 첫 설치에서는 bootstrap 사본으로 대체한다. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.ssamwrite.autodeploy</string>
+  <key>UserName</key><string>__WE_USER__</string>
+  <key>WorkingDirectory</key><string>/Users/__WE_USER__/writeessay-server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>d=/Users/__WE_USER__/writeessay-server; s=$d/app/ops/scripts; [ -f "$s/auto-deploy.sh" ] || s=$d/bootstrap/scripts; exec /bin/sh "$s/auto-deploy.sh"</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict><key>HOME</key><string>/Users/__WE_USER__</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>60</integer>
+  <key>StandardOutPath</key><string>/Users/__WE_USER__/writeessay-server/logs/autodeploy.log</string>
+  <key>StandardErrorPath</key><string>/Users/__WE_USER__/writeessay-server/logs/autodeploy.log</string>
+</dict>
+</plist>

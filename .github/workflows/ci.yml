@@ -36,6 +36,8 @@ jobs:
         run: npm run check
       - name: 단위·통합 시험
         run: npm run test -- --maxWorkers=2
+      - name: 운영 자동 배포 규칙 시험
+        run: node --test tests/ops/autodeploy.test.mjs
 
   # 화면 시험은 배포 관문에 넣지 않는다(시간이 길고 브라우저를 내려받는다). 결과는 참고용.
   e2e:

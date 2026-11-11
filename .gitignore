@@ -2,6 +2,8 @@
 node_modules/
 dist/
 dist-devices/
+# 검사 도구 견본은 일부러 만든 가짜 산출물이라 저장소에 둔다(GitHub 시험이 읽음).
+!tools/checks/fixtures/**/dist/
 *.tsbuildinfo
 .vite/
 coverage/

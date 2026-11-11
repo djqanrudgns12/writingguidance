@@ -55,6 +55,19 @@ WE_CF_DIST_ID="${WE_CF_DIST_ID:-E3TFCRGRU1HG1Q}"
 # PRD 12.3 LOG_RETENTION_DAYS 기본값(7일)과 맞춘다.
 WE_LOG_RETENTION_DAYS="${WE_LOG_RETENTION_DAYS:-7}"
 WE_RELEASES_KEEP="${WE_RELEASES_KEEP:-5}"
+WE_REPO_HTTPS="${WE_REPO_HTTPS:-https://github.com/djqanrudgns12/writingguidance.git}"
+WE_REPO_SSH="${WE_REPO_SSH:-git@github.com:djqanrudgns12/writingguidance.git}"
+WE_DEPLOY_BRANCH="${WE_DEPLOY_BRANCH:-main}"
+WE_AUTODEPLOY_REQUIRE_CI="${WE_AUTODEPLOY_REQUIRE_CI:-1}"
+# 서비스 계정은 소유자 홈(권한 700)의 resource-guard를 읽을 수 없어, 수동 배포(we.sh deploy) 때 사본을 $WE_HOME/bin에 둔다(ADR-058).
+# 사본은 계정별 잠금이라 소유자 작업과 줄을 서지는 않지만, 남은 메모리 입장 검사는 그대로 한다.
+if [ -z "${WE_RESOURCE_GUARD:-}" ]; then
+  if [ -x "$WE_HOME/bin/resource-guard" ]; then
+    WE_RESOURCE_GUARD="$WE_HOME/bin/resource-guard"
+  else
+    WE_RESOURCE_GUARD="/Users/bodyking/.local/bin/resource-guard"
+  fi
+fi
 
 export PATH="/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 NODE_BIN="/opt/homebrew/opt/node@24/bin/node"
@@ -70,6 +83,15 @@ WE_TMP_DIR=""
 we_die() {
   echo "ERROR: $*" >&2
   exit 1
+}
+
+# 로컬 격리 시험만 계정 검사를 풀고 운영 기본 경로에서는 반드시 전용 계정을 요구한다.
+we_require_service_user() {
+  if [ "${WE_OPS_TEST_MODE:-0}" = "1" ]; then
+    [ "$WE_HOME" != "/Users/$WE_SERVICE_USER/writeessay-server" ] || we_die "시험은 격리된 WE_HOME에서만 실행하세요"
+    return 0
+  fi
+  [ "$(id -un)" = "$WE_SERVICE_USER" ] || we_die "$WE_SERVICE_USER 계정으로 실행해야 합니다: sh ops/we.sh $1"
 }
 
 # 타 서비스(쌤유니버스·rollingthunder·개발 포트) 침범을 원천 차단한다.
