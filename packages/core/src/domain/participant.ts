@@ -72,11 +72,11 @@ const RAW_FORBIDDEN_SUBSTRINGS = [
 const RAW_FORBIDDEN_EXACT = ['보지', '자지', 'sex'] as const;
 
 export const FORBIDDEN_NICKNAME_SUBSTRINGS: readonly string[] = RAW_FORBIDDEN_SUBSTRINGS.map(w =>
-  w.normalize('NFKC').toLowerCase(),
+  w.normalize('NFKC').toLowerCase().normalize('NFKC'),
 );
 
 export const FORBIDDEN_NICKNAME_EXACT: readonly string[] = RAW_FORBIDDEN_EXACT.map(w =>
-  w.normalize('NFKC').toLowerCase(),
+  w.normalize('NFKC').toLowerCase().normalize('NFKC'),
 );
 
 /**
@@ -92,12 +92,20 @@ export function normalizeNickname(raw: string): string {
  * `normalizeNickname` 결과에 영문 소문자 변환을 더한다.
  */
 export function nicknameKey(raw: string): string {
-  return normalizeNickname(raw).toLowerCase();
+  return foldNickname(normalizeNickname(raw));
+}
+
+/**
+ * 정규화된 별명의 비교용 소문자. 소문자로 바꾸면 새로 합칠 수 있는 글자가 생겨(`H`+U+0331 → `h`+U+0331 → `ẖ`)
+ * 대문자로 쓴 별명과 소문자로 쓴 별명의 키가 달라지므로, 소문자 뒤에 NFKC를 한 번 더 한다(2026-11-12 GitHub 시험 반례).
+ */
+function foldNickname(normalized: string): string {
+  return normalized.toLowerCase().normalize('NFKC');
 }
 
 /** 정규화 전후 별명에 금지어가 들어 있는지 확인한다(공백·기호를 끼운 우회 포함). */
 export function containsForbiddenNickname(raw: string): boolean {
-  const lowered = normalizeNickname(raw).toLowerCase();
+  const lowered = foldNickname(normalizeNickname(raw));
   if (lowered.length === 0) return false;
 
   const compact = lowered.replace(SEPARATOR_STRIP_RE, '');
@@ -133,7 +141,7 @@ export function validateNickname(raw: string, config: NicknameConfig = defaultCo
   return {
     ok: true,
     nickname,
-    nicknameKey: nickname.toLowerCase(),
+    nicknameKey: foldNickname(nickname),
     length,
   };
 }

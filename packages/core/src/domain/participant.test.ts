@@ -94,6 +94,12 @@ describe('participant 별명 정규화·길이·금지어·비교 키', () => {
     );
   });
 
+  it('소문자로 바꾸면 합쳐지는 글자도 대소문자와 상관없이 같은 키다(GitHub 시험 반례)', () => {
+    // 'H' + U+0331(아래 줄): 대문자는 미리 합친 글자가 없고 소문자는 U+1E96 하나로 합쳐진다.
+    expect(nicknameKey('H\u0331')).toBe(nicknameKey('h\u0331'));
+    expect(nicknameKey('H\u0331')).toBe('\u1e96');
+  });
+
   it('[성질] 앞뒤 공백 추가와 영문(ASCII) 대소문자 변경은 nicknameKey를 바꾸지 않는다', () => {
     const asciiUpper = (s: string): string => s.replace(/[a-z]/g, ch => ch.toUpperCase());
     const asciiLower = (s: string): string => s.replace(/[A-Z]/g, ch => ch.toLowerCase());

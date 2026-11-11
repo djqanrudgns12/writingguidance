@@ -164,7 +164,8 @@
   z-index: 2;
   display: flex;
   padding: var(--sp-3);
-  border-radius: var(--r-sm);
+  /* 글 칸 전체를 덮는 큰 상자라 카드 모서리(PRD 8.4). 느린 망에서 디자인 검사가 잡았다(2026-11-12 GitHub 시험). */
+  border-radius: var(--r-card);
   background: var(--surface);
 }
 

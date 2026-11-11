@@ -74,3 +74,4 @@ PRD의 v1 MUST 기능을 모두 구현하고 자동 시험으로 확인했다. �
 ## 갱신
 - 2026-11-12: 시각 재검수 지적을 고친 화면으로 시험 빌드를 다시 만들어 화면 시험 전체(Chromium)를 1회 더 돌림 → **76 passed, 5 skipped, 실패 0**(11.1분). 같은 때 `npm run check` 통과, vitest 773개 통과, 운영 빌드·첫 화면 예산 통과.
 - 2026-11-12: 운영 보조 도구를 더함(Codex): `we.sh origin-secret --rotate`, `rotate-key`(PIN 키는 활성 수업방 0개일 때만), `emergency`, `logs --follow`, `db-check`(읽기 전용 무결성 확인), `status`에 디스크·릴리스 목록, `deploy <sha>`. IAM·터널 자격 증명 회전과 DB 재초기화는 안내서 수동 절차. Codex가 찾은 배포 스크립트 결함(마이그레이션을 `| tee`로 넘겨 실패가 숨겨질 수 있음)은 Claude가 고침. 셸 17개 `sh -n` 통과, 실행은 맥미니 설정 때.
+- 2026-11-12: GitHub `djqanrudgns12/writingguidance`(공개)에 `main`으로 올림. 푸시 자동 배포를 들임(ADR-058, rollingthunder 방식 + GitHub 시험 관문): 맥미니 `com.ssamwrite.autodeploy`가 1분마다 `main`을 보고, `verify`가 통과한 커밋만 수업 시간 밖·연결 0일 때 배포한다. 구현 Codex(운영 규칙 시험 32개), 통합·검토·문서 Claude. 첫 GitHub 시험에서 검사 견본 `dist/`가 git 제외로 빠진 것을 찾아 고쳤다. 맥미니 설정(서비스 계정·비밀값·터널·CloudFront)은 sudo 암호와 비밀값이 필요해 아직 사용자 일(안내서 1부 2~8단계, 4-1단계가 자동 배포 켜기).
