@@ -1,0 +1,65 @@
+# 푸시 시험(ADR-058). 맥미니 자동 배포(com.ssamwrite.autodeploy)는 이 파일의 `verify` 작업이
+# 성공한 main 커밋만 배포한다. 작업 이름을 바꾸면 ops/scripts/auto-deploy.sh의 check_name도 함께 바꾼다.
+# GitHub 호스트 러너에서만 돈다(맥미니 self-hosted 러너 없음: 저장소 코드가 운영 셸을 열지 않게).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - name: 의존성 설치(.npmrc min-release-age=7)
+        run: npm ci --no-audit --no-fund
+      # 첫 화면 예산 검사(bundle.mjs)가 실제 산출물을 재도록 빌드를 먼저 한다.
+      - name: 운영 빌드
+        run: npm run build
+      - name: 형식·타입·규칙 검사
+        run: npm run check
+      - name: 단위·통합 시험
+        run: npm run test -- --maxWorkers=2
+
+  # 화면 시험은 배포 관문에 넣지 않는다(시간이 길고 브라우저를 내려받는다). 결과는 참고용.
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: 시험용 웹 빌드
+        run: npm run build:devices
+      - name: 화면 시험(Chromium)
+        run: npm run e2e -- --workers=1
+      - name: 실패 기록 올리기
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
