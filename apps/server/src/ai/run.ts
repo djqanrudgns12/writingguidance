@@ -162,6 +162,9 @@ export async function runStructured<B extends Structured>(
       break;
     }
     const started = now();
+    // 남은 전체 예산이 한 번 시도 제한보다 짧으면 이 시도가 마감까지 쓴다. 그런데 타이머가 시계보다 1ms쯤
+    // 일찍 울리면 `left`가 0보다 커 보여 거의 빈 시도를 하나 더 시작했다(GitHub 시험, 2026-11-12). 이때는 마감으로 본다.
+    const cutByDeadline = left < perAttemptMs;
     const signal = attemptSignal(deps.signal, Math.min(perAttemptMs, left));
     try {
       const reply = await deps.ai.structured(input, { ...attempt, signal });
@@ -175,6 +178,7 @@ export async function runStructured<B extends Structured>(
       deps.log?.attempt(attempt, kind, now() - started);
       if (deps.signal.aborted) throw new AppError('E_AI_TIMEOUT');
       lastKind = kind;
+      if (kind === 'timeout' && cutByDeadline) break;
       attempt = nextAttempt(deps.config, attempt, kind, tried);
     }
   }

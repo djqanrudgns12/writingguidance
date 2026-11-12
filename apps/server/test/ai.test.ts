@@ -62,6 +62,24 @@ describe('AI 재시도·대체(PLAN §8.2, PRD 6.5)', () => {
     expect(ai.calls.length).toBe(2);
   });
 
+  it('전체 마감으로 잘린 시도 뒤에는 타이머가 시계보다 조금 일찍 울려도 새 시도를 하지 않는다', async () => {
+    // GitHub 시험(2026-11-12)에서 맞춤법 조각이 마감 1ms 전에 하나 더 시작됐다. 시계를 손으로 움직여 같은 순간을 만든다.
+    let t = 0;
+    const fake = createFakeAi({ delayMs: 500 });
+    const structured: typeof fake.structured = (input, options) => {
+      // 시도가 마감(50ms)에 잘려 돌아올 때 시계는 아직 마감 1ms 전이다.
+      t = 49;
+      return fake.structured(input, options);
+    };
+    const ai: typeof fake = { ...fake, structured };
+    const err = await runStructured(
+      { ai, config: defaultConfig, signal: new AbortController().signal, now: () => t, deadline: 50 },
+      input('SPELL'),
+    ).catch(e => e);
+    expect((err as AppError).code).toBe('E_AI_TIMEOUT');
+    expect(fake.calls).toHaveLength(1);
+  });
+
   it('다듬은 글: 글자를 보낸 뒤 거절되면 reset 뒤 대체 모델이 처음부터', async () => {
     const ai = createFakeAi({ script: [{ fail: 'refusal', failAfterChars: 8 }], chunkChars: 4 });
     const lines: PolishLine[] = [];
