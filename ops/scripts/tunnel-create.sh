@@ -91,7 +91,9 @@ tunnel_id="$(cf tunnel list --output json | "$NODE_BIN" -e '
   process.stdin.on("end", () => {
     const name = process.argv[1];
     const items = JSON.parse(raw || "[]");
-    const found = items.find(t => t && t.name === name && !t.deleted_at);
+    // 지우지 않은 터널도 deleted_at에 0001-01-01T00:00:00Z(빈 시각)가 들어 온다(2026-11-12 실제 응답).
+    const alive = t => !t.deleted_at || String(t.deleted_at).startsWith("0001-01-01");
+    const found = items.find(t => t && t.name === name && alive(t));
     if (!found || !found.id) process.exit(1);
     process.stdout.write(String(found.id));
   });
