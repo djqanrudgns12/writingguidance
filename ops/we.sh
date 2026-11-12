@@ -274,8 +274,10 @@ case "$cmd" in
     [ -n "$init_flag" ] && set -- "$@" "$init_flag"
 
     if [ -x "$rg_bin" ] && [ "${RESOURCE_GUARD_ACTIVE:-0}" != "1" ]; then
+      cd /
       exec "$rg_bin" run --profile build -- sudo -u "$svc" -H sh "$sdir/deploy.sh" "$@"
     else
+      cd /
       exec sudo -u "$svc" -H sh "$sdir/deploy.sh" "$@"
     fi
     ;;

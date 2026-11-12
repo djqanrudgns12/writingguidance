@@ -81,6 +81,8 @@ target_ref="${target_ref:-HEAD}"
 
 here="$(cd "$(dirname "$0")" && pwd -P)"
 . "$here/env.sh"
+# 소유자 저장소(권한 700)에서 sudo로 불리면 현재 폴더를 읽을 수 없어 git·npm이 흔들린다. 서버 루트에서 시작한다.
+cd "$WE_HOME" 2>/dev/null || cd /
 
 we_require_service_user deploy
 
@@ -162,7 +164,11 @@ else
   bundle_path="${bundle_path:-$WE_BUNDLES/incoming.bundle}"
   [ -s "$bundle_path" ] || we_die "git bundle 파일이 없습니다: $bundle_path (sh ops/we.sh deploy 로 실행하세요)"
   echo "== 1/6 git bundle 검증 및 커밋 추출"
-  git bundle verify "$bundle_path" >/dev/null 2>&1 || we_die "유효하지 않거나 불완전한 git bundle입니다: $bundle_path"
+  # `git bundle verify`는 저장소 안에서만 돈다(밖이면 "need a repository"). 받을 곳인 repo-cache에서 확인한다.
+  if [ ! -d "$cache/objects" ]; then
+    git init -q --bare "$cache"
+  fi
+  git -C "$cache" bundle verify "$bundle_path" >/dev/null 2>&1 || we_die "유효하지 않거나 불완전한 git bundle입니다: $bundle_path"
 
   resolved_line="$(git bundle list-heads "$bundle_path" | awk -v want="$target_ref" '
   $2 == want || $2 == ("refs/heads/" want) || $2 == ("refs/tags/" want) || $1 == want {
@@ -180,9 +186,6 @@ else
     *[!0-9a-f]*|"") we_die "커밋 해시 형식이 올바르지 않습니다: $full_sha" ;;
   esac
 
-  if [ ! -d "$cache/objects" ]; then
-    git init -q --bare "$cache"
-  fi
   git -C "$cache" fetch -q "$bundle_path" "+$bundle_ref:refs/deploy/target"
 fi
 mkdir -p "$WE_RELEASES" "$WE_LOGS" "$WE_STATE" "$WE_DATA"
