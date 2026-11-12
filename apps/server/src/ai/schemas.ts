@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MODEL_RULE_IDS, SPELL_INTENTS, SPELL_SEVERITIES } from './guard/spellRules.ts';
 
 /**
  * 버튼별 응답 형식(PRD 6.3). 검증은 이 zod 스키마로, 제공사에는 `providerSchema`가 만든 JSON 스키마를 보낸다.
@@ -29,6 +30,10 @@ export const spellResultSchema = z.object({
       reason: z.string(),
       kind: z.enum(SPELL_KINDS),
       context: z.object({ before: z.string(), after: z.string() }),
+      // 등급·의도·근거(docs/ai-harness.md 5절). 모델이 비우면 서버가 확신 없음(권장)으로 본다.
+      severity: z.enum(SPELL_SEVERITIES).optional(),
+      intent: z.enum(SPELL_INTENTS).optional(),
+      ruleId: z.enum(MODEL_RULE_IDS).optional(),
     }),
   ),
 });

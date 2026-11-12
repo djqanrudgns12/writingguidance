@@ -8,6 +8,7 @@ import type {
   EditorFields,
   EditorOptions,
   EditorPort,
+  HighlightRange,
   HistoryState,
   TextRange,
 } from '../../ports/editor.ts';
@@ -81,7 +82,7 @@ export function mountEditor(
   let applyingRemote = false;
   let destroyed = false;
   let desiredReadOnly = options.readOnly;
-  let highlights: readonly TextRange[] = [];
+  let highlights: readonly HighlightRange[] = [];
   let lastEditedField: FieldKey | null = null;
   let lastEditedAt = -Infinity;
   let lastFocusedField: FieldKey | null = null;
@@ -370,7 +371,11 @@ export function mountEditor(
   const rangesFor = (key: FieldKey) =>
     highlights
       .filter(r => fieldKeyOf(r) === key)
-      .map(r => ({ start: Math.min(r.start, r.end), end: Math.max(r.start, r.end) }));
+      .map(r => ({
+        start: Math.min(r.start, r.end),
+        end: Math.max(r.start, r.end),
+        tone: r.tone ?? 'strong',
+      }));
 
   const redraw = (key: FieldKey) => {
     const mirror = mirrors.get(key);

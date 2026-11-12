@@ -19,6 +19,10 @@ export interface FakeStep {
   readonly delayMs?: number;
   /** 다듬은 글: 이만큼 글자를 보낸 뒤 실패 */
   readonly failAfterChars?: number;
+  /** 구조화 결과를 이 값으로 돌려준다(출력 검사 시험용: 일부러 규칙을 어긴 응답) */
+  readonly reply?: unknown;
+  /** 다듬은 글을 이 글로 돌려준다(출력 검사 시험용) */
+  readonly polishText?: string;
 }
 
 export interface FakeAiOptions {
@@ -92,8 +96,9 @@ export function createFakeAi(
   return {
     calls,
     async structured(input, o) {
-      await step(input.button, o);
+      const s = await step(input.button, o);
       const usage = { model: o.model, inputTokens: input.text.length, outputTokens: 50 };
+      if (s.reply !== undefined) return { value: s.reply as never, usage };
       if (input.button === 'SPELL') return { value: fakeSpell(input.text) as never, usage };
       if (input.button === 'FEEDBACK') {
         const value: FeedbackResult = {
@@ -122,7 +127,7 @@ export function createFakeAi(
         rejectDone = rej;
       });
       done.catch(() => {});
-      const polished = input.text.replace(/되요/g, '돼요').replace(/할수/g, '할 수');
+      const polishedDefault = input.text.replace(/되요/g, '돼요').replace(/할수/g, '할 수');
       async function* iterate(): AsyncGenerator<string> {
         let s: FakeStep;
         try {
@@ -131,7 +136,7 @@ export function createFakeAi(
           rejectDone(e);
           throw e;
         }
-        const chars = [...polished];
+        const chars = [...(s.polishText ?? polishedDefault)];
         for (let i = 0; i < chars.length; i += chunk) {
           if (s.fail && s.failAfterChars !== undefined && i >= s.failAfterChars) {
             const e = new AiCallError(s.fail);

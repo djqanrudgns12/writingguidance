@@ -245,12 +245,19 @@ export const koDev = {
     ].join('\n'),
     memoNote: '지난 월요일 아침, 텃밭 앞',
     spellItems: [
-      { original: '됬다', suggestion: '됐다', reason: '"되었다"를 줄이면 "됐다"예요.', kind: '맞춤법' },
+      {
+        original: '됬다',
+        suggestion: '됐다',
+        reason: '"되었다"를 줄이면 "됐다"예요.',
+        kind: '맞춤법',
+        ruleLabel: '되/돼 구별',
+      },
       {
         original: '공부라는걸',
         suggestion: '공부라는 걸',
         reason: '"걸"은 앞말과 띄어 써요.',
         kind: '띄어쓰기',
+        ruleLabel: '띄어 쓰는 말',
       },
       {
         original: '신기해 했다',
@@ -269,6 +276,44 @@ export const koDev = {
         suggestion: '물을 주었다',
         reason: '낱말 사이는 띄어 써요.',
         kind: '띄어쓰기',
+      },
+    ],
+    // 맞춤법 등급 견본(docs/ai-harness.md 5절): 권장해요, 그대로 둬도 돼요. 마지막 권장 항목은 비속어 자리(바꿀 말 없음).
+    spellSuggestItems: [
+      {
+        original: '진짜루',
+        suggestion: '진짜로',
+        reason: '글에서는 "진짜로"라고 쓰는 게 국어사전 표기예요.',
+        kind: '맞춤법',
+        ruleLabel: '표준어',
+      },
+      {
+        original: '화이팅',
+        suggestion: '파이팅',
+        reason: '외래어는 "파이팅"으로 적어요.',
+        kind: '맞춤법',
+        ruleLabel: '외래어 적는 법',
+      },
+      {
+        original: '바보',
+        suggestion: '',
+        reason: '고운 말로 바꿔 보면 어때요?',
+        kind: '맞춤법',
+        ruleLabel: '고운 말',
+      },
+    ],
+    spellKeepItems: [
+      {
+        original: '했당께',
+        suggestion: '했다니까',
+        reason: '인물의 사투리 말투라 그대로 둬도 돼요.',
+        kind: '맞춤법',
+      },
+      {
+        original: '쪼오금',
+        suggestion: '조금',
+        reason: '대사 속 늘임 말이라 그대로 둬도 돼요.',
+        kind: '맞춤법',
       },
     ],
     feedbackPraise: '첫 문장에 언제, 어디서, 무슨 일이 있었는지 잘 담았어요.',

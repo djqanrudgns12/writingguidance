@@ -11,7 +11,7 @@ import { NicknameView } from './screens/student/NicknameView.tsx';
 import { ResumeWaitView } from './screens/student/ResumeWaitView.tsx';
 import { AiChipBar } from './screens/student/write/AiChipBar.tsx';
 import { RewindSheet as StudentRewindSheet } from './screens/student/write/RewindSheet.tsx';
-import type { AiChipView, ResultPanelView } from './screens/student/write/types.ts';
+import type { AiChipView, ResultPanelView, SpellItemView } from './screens/student/write/types.ts';
 import { WriteView, type WriteViewProps } from './screens/student/write/WriteView.tsx';
 import { CodeKeypadField } from './screens/teacher/CodeKeypadField.tsx';
 import { ConnectionCheckView } from './screens/teacher/ConnectionCheck.tsx';
@@ -825,5 +825,82 @@ describe('대비표: 눌림 단추 글자·입력칸 경계 토큰', () => {
       expect(contrast(tokenColor(token), tokenColor('bg'))).toBeGreaterThanOrEqual(3);
       expect(contrast(tokenColor(token), tokenColor('surface'))).toBeGreaterThanOrEqual(3);
     }
+  });
+});
+
+describe('맞춤법 등급은 색만이 아니라 글자·모양으로도 구분되고 읽기 이름에 들어간다(docs/ai-harness.md 5절)', () => {
+  const item = (id: string, severity: SpellItemView['severity']): SpellItemView => ({
+    id,
+    original: `o-${id}`,
+    suggestion: `s-${id}`,
+    reason: `r-${id}`,
+    kind: 'spelling',
+    severity,
+    locatable: true,
+  });
+  const panel: ResultPanelView = {
+    button: 'SPELL',
+    status: 'ready',
+    receivedAt: NOW,
+    content: { kind: 'SPELL', items: [item('f', 'fix'), item('s', 'suggest'), item('k', 'keep')] },
+  };
+  const panelCss = () => css('./screens/student/write/ResultPanel.module.css');
+  const mirrorCss = () =>
+    fs.readFileSync(`${UI_DIR}../adapters/editor/mirror.css`, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  it('항목 단추의 읽기 이름이 등급 글자로 시작한다(고쳐요는 보이지 않는 글자로)', () => {
+    render(<WriteView {...writeProps({ panel })} />);
+    const name = (id: string) =>
+      spokenText(buttonByText(`o-${id}`, host.querySelector('aside[data-result="SPELL"]') ?? host)).trim();
+    expect(name('f').startsWith(ko.student.aiSpellSeverityFix)).toBe(true);
+    expect(name('s').startsWith(ko.student.aiSpellSeveritySuggest)).toBe(true);
+    expect(name('k').startsWith(ko.student.aiSpellSeverityKeep)).toBe(true);
+    const hidden = host.querySelector('[data-severity-group="fix"] .visually-hidden');
+    expect(hidden?.textContent).toBe(ko.student.aiSpellSeverityFix);
+  });
+
+  it('그대로 둬도 돼요 묶음은 접힌 details라 키보드로 펼칠 수 있고, 펼쳐도 쓰기 칸 초점·선택·값은 그대로다', () => {
+    const bodyRef = createRef<HTMLTextAreaElement>();
+    render(<WriteView {...writeProps({ bodyRef })} />);
+    const body = bodyRef.current as HTMLTextAreaElement;
+    body.value = 'abc def';
+    act(() => body.focus());
+    body.setSelectionRange(2, 5);
+    render(<WriteView {...writeProps({ bodyRef, panel })} />);
+    const details = host.querySelector<HTMLDetailsElement>('details[data-severity-group="keep"]');
+    expect(details?.open).toBe(false);
+    expect(details?.querySelector('summary')).not.toBeNull();
+    act(() => {
+      if (details) details.open = true;
+    });
+    expect(document.activeElement).toBe(body);
+    expect([body.value, body.selectionStart, body.selectionEnd, body.readOnly]).toEqual([
+      'abc def',
+      2,
+      5,
+      false,
+    ]);
+  });
+
+  it('권장해요는 점선 테두리·글자 표시, 쓰기 칸 형광은 옅은 색 + 점선 밑줄(색맹이어도 구분)', () => {
+    expect(ruleBodies(panelCss(), '.spellItemSuggest').join('\n')).toMatch(/border-style:\s*dashed/);
+    expect(ruleBodies(panelCss(), '.severityBadge').join('\n')).toMatch(/dashed/);
+    const soft = ruleBodies(
+      mirrorCss(),
+      "[data-mirror] [data-mirror-mark='highlight'][data-mirror-tone='soft']",
+    ).join('\n');
+    expect(soft).toMatch(/background:\s*var\(--butter-soft\)/);
+    expect(soft).toMatch(/text-decoration-style:\s*dotted/);
+    expect(soft).toMatch(/text-decoration-color:\s*var\(--butter-ink\)/);
+  });
+
+  it('대비: 옅은 버터 위 글자 4.5:1, 점선 3:1, 눌린 고쳐요(버터) 위 보조 글자는 잉크', () => {
+    const soft = tokenColor('butter-soft');
+    expect(contrast(tokenColor('ink'), soft)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokenColor('ink-sub'), soft)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(tokenColor('butter-ink'), soft)).toBeGreaterThanOrEqual(3);
+    expect(contrast(tokenColor('butter-ink'), tokenColor('surface'))).toBeGreaterThanOrEqual(3);
+    expect(contrast(tokenColor('butter-ink'), tokenColor('bg'))).toBeGreaterThanOrEqual(3);
+    expect(ruleBodies(panelCss(), '.spellItemActive .reason').join('\n')).toMatch(/color:\s*var\(--ink\)/);
   });
 });

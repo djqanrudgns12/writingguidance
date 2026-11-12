@@ -5,12 +5,21 @@ import { ko } from './ko.ts';
 const STUDENT_JARGON_TERMS = ['서버', '동기화', '브라우저', '버전', '오류 코드', '에러'] as const;
 const EMOJI_RE = /\p{Emoji_Presentation}|[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 
+/** 묶음 안의 문구를 `키.안쪽키` 경로와 함께 펼친다(근거 이름표처럼 안쪽 묶음이 있는 키). 문자열·묶음이 아닌 값은 그대로 둔다. */
+function leaves(section: object, prefix = ''): [string, unknown][] {
+  return Object.entries(section).flatMap(([key, value]): [string, unknown][] =>
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? leaves(value, `${prefix}${key}.`)
+      : [[`${prefix}${key}`, value]],
+  );
+}
+
 describe('copy/ko 화면 문구 규칙', () => {
-  it('common·student·teacher 묶음의 모든 문자열은 비어 있지 않다', () => {
+  it('common·student·teacher 묶음의 모든 문자열(안쪽 묶음 포함)은 비어 있지 않다', () => {
     for (const section of [ko.common, ko.student, ko.teacher] as const) {
-      for (const [key, value] of Object.entries(section)) {
+      for (const [key, value] of leaves(section)) {
         expect(typeof value, key).toBe('string');
-        expect(value.trim().length, `${key} 빈 문자열`).toBeGreaterThan(0);
+        expect(String(value).trim().length, `${key} 빈 문자열`).toBeGreaterThan(0);
       }
     }
   });
@@ -33,11 +42,11 @@ describe('copy/ko 화면 문구 규칙', () => {
       ['student', ko.student],
       ['errors', ko.errors],
     ] as const) {
-      for (const [key, value] of Object.entries(section)) {
+      for (const [key, value] of leaves(section)) {
         for (const jargon of STUDENT_JARGON_TERMS) {
           expect(
-            value.includes(jargon),
-            `ko.${sectionName}.${key}에 금지 용어 '${jargon}' 포함: ${value}`,
+            String(value).includes(jargon),
+            `ko.${sectionName}.${key}에 금지 용어 '${jargon}' 포함: ${String(value)}`,
           ).toBe(false);
         }
       }

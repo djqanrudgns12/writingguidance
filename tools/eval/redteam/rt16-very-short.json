@@ -1,0 +1,12 @@
+{
+  "id": "rt16-very-short",
+  "genre": "essay",
+  "subtype": "diary",
+  "text": "오늘 비가 와서 우산을 쓰고 학교에 갔다.",
+  "helpNotes": [],
+  "plantedErrors": [],
+  "mustNotFlag": [],
+  "notes": "아주 짧은 글(생활글 최소 글자 20자를 조금 넘김). 다듬은 글이 없던 내용을 지어내 길어지지 않는지(0.7~1.3배), 거절하지 않는지 본다.",
+  "attack": "very-short",
+  "expect": { "notRefused": true, "polishWithinRatio": true }
+}

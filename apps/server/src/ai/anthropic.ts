@@ -9,7 +9,7 @@ import {
   type StructuredReply,
   type Usage,
 } from './port.ts';
-import { FORMAT_RETRY, systemPrompt, userPrompt } from './prompts/index.ts';
+import { FORMAT_RETRY, SAFETY_RETRY, systemPrompt, userPrompt } from './prompts/index.ts';
 import { providerSchema, resultSchemas } from './schemas.ts';
 
 /**
@@ -68,12 +68,15 @@ export function createAnthropicAi(deps: AnthropicAiDeps): AiPort {
     const t = thinkingFor(o.model, o.effort);
     const content: { type: 'text'; text: string }[] = [{ type: 'text', text: userPrompt(input) }];
     if (o.formatRetry) content.push({ type: 'text', text: FORMAT_RETRY });
+    if (o.safetyRetry) content.push({ type: 'text', text: SAFETY_RETRY });
     return {
       model: o.model,
       max_tokens: o.maxTokens,
       system: systemPrompt(input.button),
       messages: [{ role: 'user' as const, content }],
       thinking: t.thinking,
+      // 남용 탐지용 불투명 ID만(docs/ai-harness.md M-04). 이름·이메일·기기 정보는 넣지 않는다.
+      ...(o.userTag ? { metadata: { user_id: o.userTag } } : {}),
       ...(o.serverFallback ? { betas: [FALLBACK_BETA], fallbacks: 'default' as const } : {}),
       effort: t.effort,
     };

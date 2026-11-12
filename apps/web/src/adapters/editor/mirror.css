@@ -15,6 +15,19 @@
   background: var(--butter);
 }
 
+/*
+ * 맞춤법 권장해요(docs/ai-harness.md 5절): 옅은 버터 + 점선 밑줄. 색만으로 가르지 않으려고 밑줄 모양을 함께 바꾼다.
+ * 거울 글자는 투명이라 밑줄 색을 따로 준다. 밑줄은 배치를 바꾸지 않아 입력칸과 줄바꿈이 어긋나지 않는다.
+ */
+[data-mirror] [data-mirror-mark='highlight'][data-mirror-tone='soft'] {
+  background: var(--butter-soft);
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--butter-ink);
+  text-decoration-thickness: var(--stroke-focus);
+  text-underline-offset: 0.2em;
+}
+
 /* inline-block은 UAX #14 줄바꿈 경계를 바꾸므로 0폭 inline 요소와 절대 위치 ::after로 그린다. */
 [data-mirror] [data-mirror-caret] {
   display: inline;

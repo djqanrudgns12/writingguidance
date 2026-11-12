@@ -20,6 +20,8 @@ const spell = (docId = DOC, patch: Partial<AiResultRecordOf<'SPELL'>> = {}): AiR
         reason: '되어요를 줄이면 돼요예요',
         kind: '맞춤법',
         context: { before: '정말 ', after: '.' },
+        severity: 'fix',
+        rule: { id: 'HM_35', label: '되/돼 구별', url: 'https://korean.go.kr/' },
       },
     ],
   },
@@ -120,6 +122,25 @@ describe('IndexedDB AI 결과 저장소', () => {
     expect(await store.get(DOC, 'FEEDBACK')).toBeNull();
     expect((await store.list(DOC)).map(r => r.button)).toEqual(['SPELL']);
     expect(await store.get(DOC, 'SPELL')).not.toHaveProperty('key');
+  });
+
+  it('등급 전에 저장된 맞춤법 결과(등급·근거·알림 없음)도 읽히고, 등급은 고쳐요로 본다', async () => {
+    const db = await openLocalDb(new IDBFactory());
+    const old = spell();
+    const item = { ...old.result.items[0]! } as Partial<(typeof old.result.items)[number]>;
+    delete item.severity;
+    delete item.rule;
+    const tx = db.transaction(STORES.aiResults, 'readwrite');
+    tx.objectStore(STORES.aiResults).put({
+      key: aiResultKey(DOC, 'SPELL'),
+      ...old,
+      result: { items: [item] },
+    });
+    await new Promise(resolve => (tx.oncomplete = resolve));
+    const got = await createIndexedDbAiResults(db).get(DOC, 'SPELL');
+    expect(got?.result.items).toEqual([{ ...item, severity: 'fix' }]);
+    expect(got?.result.items[0]).not.toHaveProperty('rule');
+    expect(got?.result.notices).toBeUndefined();
   });
 });
 

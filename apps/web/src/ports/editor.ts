@@ -14,6 +14,14 @@ export interface TextRange {
   readonly direction?: 'forward' | 'backward' | 'none';
 }
 
+/** 거울 층 형광 세기. `soft`는 옅은 색 + 점선 밑줄(맞춤법 권장해요, docs/ai-harness.md 5절). */
+export type HighlightTone = 'strong' | 'soft';
+
+export interface HighlightRange extends TextRange {
+  /** 없으면 `strong`(지금 색) */
+  readonly tone?: HighlightTone | undefined;
+}
+
 export interface EditorOptions {
   readonly role: 'student' | 'teacher';
   readonly readOnly: boolean;
@@ -44,8 +52,8 @@ export interface EditorBinding {
   readonly viewDoc: Y.Doc;
   /** 반영 문 조건을 지킨 뒤 선택한다(맞춤법 항목 누름). */
   select(range: TextRange): Promise<void>;
-  /** 거울 층에만 그린다. */
-  highlight(ranges: readonly TextRange[]): void;
+  /** 거울 층에만 그린다(입력칸 값·선택·초점·readOnly는 건드리지 않아 반영 문과 관계없이 부를 수 있다). */
+  highlight(ranges: readonly HighlightRange[]): void;
   /** 구조 버튼·복원·되살리기처럼 앱이 하는 변경. 조합 중이 아닐 때 한 번에 적용한다. */
   applyAppEdit(edit: (doc: Y.Doc) => void): Promise<void>;
   /** 문이 열릴 때 적용한다. */

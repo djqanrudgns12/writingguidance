@@ -148,6 +148,33 @@
   font-weight: var(--fw-title);
 }
 
+/* 결과 알림(개인정보·고운 말): 꾸짖는 빨강이 아니라 종이 카드 한 줄로 권한다 */
+.safetyNotice {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  line-height: var(--lh-body);
+}
+
+.safetyNotice svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* 맞춤법 등급 묶음(docs/ai-harness.md 5절): 고쳐요 → 권장해요 → 접힌 그대로 둬도 돼요 */
+.spellGroups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
 /* 맞춤법 목록: 누를 수 있는 항목만 잉크 테두리 + 그림자, 못 찾은 항목은 옅은 선만(PRD 8.4 읽기 전용) */
 .spellList {
   margin: 0;
@@ -199,6 +226,54 @@ button.spellItemActive:hover {
   background: var(--butter);
 }
 
+/* 버터 위 --ink-sub는 3.90:1이라 눌린 항목의 보조 글자는 잉크로 올린다(P5-1 [중-5]와 같은 기준) */
+.spellItemActive .original,
+.spellItemActive .arrow,
+.spellItemActive .reason {
+  color: var(--ink);
+}
+
+/* 권장해요: 점선 테두리 + 옅은 버터("꼭 고칠 건 아님"). 쓰기 칸 형광도 같은 옅은 색 + 점선 밑줄이다. */
+.spellItemSuggest {
+  border-style: dashed;
+  border-color: var(--butter-ink);
+}
+
+/* 그대로 둬도 돼요: 접힌 묶음 안의 조용한 카드 */
+.spellItemKeep {
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--bg);
+}
+
+.spellItemSuggest.spellItemActive,
+.spellItemKeep.spellItemActive,
+button.spellItemSuggest.spellItemActive:hover,
+button.spellItemKeep.spellItemActive:hover {
+  background: var(--butter-soft);
+}
+
+.spellItemSuggest.spellItemLocked {
+  border-style: dashed;
+}
+
+/* 등급 글자(색만으로 가르지 않는다): 권장해요는 점선 버터, 그대로 둬도 돼요는 옅은 선 */
+.severityBadge {
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) dashed var(--butter-ink);
+  background: var(--butter-soft);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+}
+
+.severityBadge[data-severity='keep'] {
+  border-style: solid;
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink-sub);
+}
+
 .spellItemLocked {
   border: var(--stroke-thin) solid var(--line);
   background: var(--bg);
@@ -241,9 +316,70 @@ button.spellItemActive:hover {
   font-weight: var(--fw-title);
 }
 
+.reasonLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+}
+
 .reason {
   font-size: var(--fs-small);
   color: var(--ink-sub);
+}
+
+/* 근거 이름(S-07): 이유 옆 작은 꼬리표. 학생 화면에는 링크를 두지 않는다. */
+.ruleLabel {
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-pill);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+  color: var(--ink-sub);
+  font-size: var(--fs-small);
+  white-space: nowrap;
+}
+
+/* 그대로 둬도 돼요 묶음: 기본으로 접혀 있다(교사 서랍 메모와 같은 details 모양) */
+.keepGroup {
+  border-radius: var(--r-sm);
+  border: var(--stroke-thin) solid var(--line);
+  background: var(--surface);
+}
+
+.keepSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-title);
+  cursor: pointer;
+  list-style: none;
+}
+
+.keepSummary::-webkit-details-marker {
+  display: none;
+}
+
+.keepSummary:focus-visible {
+  outline: var(--stroke-focus) solid var(--ink);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+.keepGroup[open] > .keepSummary {
+  border-bottom: var(--stroke-thin) solid var(--line);
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+
+.keepBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
 }
 
 .unlocated {

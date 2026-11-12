@@ -13,13 +13,16 @@ import {
   aiResultSchemas,
   isApiError,
   type AiRequestInput,
+  type AiResultNotice,
   type ApiError,
   type ApiPort,
   type SpellItem,
   type SpellKind,
+  type SpellSeverity,
   type StructuredAiButton,
 } from '../ports/api.ts';
 import type { DeviceMemory } from '../ports/deviceMemory.ts';
+import type { HighlightTone } from '../ports/editor.ts';
 import type { AiResultRecord, AiResultRecordOf, LocalStorePort } from '../ports/localStore.ts';
 import { value, type Observable } from '../ports/observable.ts';
 import type { AiChipInput } from './aiChip.ts';
@@ -156,6 +159,19 @@ export const SPELL_KIND_COPY_KEYS: Readonly<Record<SpellKind, StudentCopyKey>> =
   띄어쓰기: 'aiSpellKindSpacing',
   문장부호: 'aiSpellKindPunctuation',
 };
+
+/**
+ * 쓰기 칸 형광의 세기(docs/ai-harness.md 5절): 고쳐요만 지금 색, 권장해요·그대로 둬도 돼요는 옅은 색 + 점선 밑줄.
+ * 확신이 없는 지적이 확실한 지적처럼 보이지 않게 한다.
+ */
+export function spellHighlightTone(severity: SpellSeverity): HighlightTone {
+  return severity === 'fix' ? 'strong' : 'soft';
+}
+
+/** 결과 안의 알림(개인정보·고운 말). 다듬은 글은 스트림이라 알림이 없다. 저장된 결과를 다시 열 때도 같다. */
+export function aiResultSafetyNotices(record: AiResultRecord): readonly AiResultNotice[] {
+  return record.button === 'POLISH' ? [] : (record.result.notices ?? []);
+}
 
 /** 결과 패널에 붙일 안내 줄(PRD F-26·6.3·PLAN §8.6). 저장된 결과를 다시 열 때도 같은 것을 보인다. */
 export function aiResultNotices(record: AiResultRecord): StudentCopyKey[] {

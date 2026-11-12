@@ -13,9 +13,11 @@ import {
   activityFor,
   aiResultNotices,
   createAiRequester,
+  aiResultSafetyNotices,
   locateSpellItems,
   polishLengthWarning,
   prepareAiText,
+  spellHighlightTone,
   stripPolishHeader,
   type AiDeps,
   type AiDocInput,
@@ -333,6 +335,7 @@ describe('맞춤법 위치(PLAN §8.6)', () => {
         reason: 'r',
         kind: '맞춤법',
         context: { before: '있었다 ', after: '.' },
+        severity: 'fix',
       },
       {
         original: '되요',
@@ -340,6 +343,7 @@ describe('맞춤법 위치(PLAN §8.6)', () => {
         reason: 'r',
         kind: '맞춤법',
         context: { before: '내일도 ', after: '.' },
+        severity: 'fix',
       },
       {
         original: '않되',
@@ -347,6 +351,7 @@ describe('맞춤법 위치(PLAN §8.6)', () => {
         reason: 'r',
         kind: '띄어쓰기',
         context: { before: '', after: '' },
+        severity: 'fix',
       },
     ],
   };
@@ -377,6 +382,110 @@ describe('맞춤법 위치(PLAN §8.6)', () => {
     expect(a?.range).toBeNull();
     expect(edited.slice(b!.range!.start, b!.range!.end)).toBe('되요');
     expect(b?.range?.start).toBe(edited.indexOf('내일도 되요') + 4);
+  });
+});
+
+describe('맞춤법 등급·근거·알림(docs/ai-harness.md 5절, S-06·S-07·P-01·S-09)', () => {
+  const REQUEST = '진짜루 재미있었다 되요. "했당께" 말했다.';
+  const item = (patch: Record<string, unknown>) => ({
+    original: '되요',
+    suggestion: '돼요',
+    reason: 'r',
+    kind: '맞춤법',
+    context: { before: '재미있었다 ', after: '.' },
+    ...patch,
+  });
+  const reply = (result: unknown) => () =>
+    Promise.resolve({ button: 'SPELL' as const, result, receivedAt: 1, textHash: 'x' });
+
+  it('등급·근거·알림을 받아 저장하고, 지금 글에서 찾은 항목에도 그대로 이어진다', async () => {
+    const rule = { id: 'HM_35', label: '되/돼 구별', url: 'https://korean.go.kr/' };
+    fake.state.reply = reply({
+      items: [
+        item({ severity: 'fix', rule }),
+        item({
+          original: '진짜루',
+          suggestion: '진짜로',
+          context: { before: '', after: ' ' },
+          severity: 'suggest',
+        }),
+        item({
+          original: '했당께',
+          suggestion: '했다니까',
+          context: { before: '"', after: '"' },
+          severity: 'keep',
+        }),
+      ],
+      notices: ['PII_IN_TEXT', 'PROFANITY_IN_TEXT'],
+    });
+    const requester = createAiRequester(deps);
+    const { record, spellItems } = await requester.structured(story(REQUEST), 'SPELL');
+    expect(spellItems.map(i => [i.original, i.severity, i.rule?.label ?? null, i.range !== null])).toEqual([
+      ['되요', 'fix', '되/돼 구별', true],
+      ['진짜루', 'suggest', null, true],
+      ['했당께', 'keep', null, true],
+    ]);
+    expect(aiResultSafetyNotices(record)).toEqual(['PII_IN_TEXT', 'PROFANITY_IN_TEXT']);
+    // 다시 열어도(저장소에서 읽어도) 같다
+    const reopened = createAiRequester({ ...deps, localStore: createIndexedDbStore(db) });
+    expect(await reopened.lastResult(DOC, 'SPELL')).toEqual(record);
+  });
+
+  it('등급이 없는 옛 결과는 고쳐요, 모르는 등급은 권장해요, 모양이 틀린 근거와 모르는 알림은 버린다', async () => {
+    fake.state.reply = reply({
+      items: [
+        item({}),
+        item({ severity: 'maybe', rule: { id: 'HM_35' } }),
+        item({ severity: null, rule: 'HM_35' }),
+      ],
+      notices: ['PII_IN_TEXT', 'SOMETHING_NEW', 'PII_IN_TEXT'],
+    });
+    const requester = createAiRequester(deps);
+    const { record } = await requester.structured(story(REQUEST), 'SPELL');
+    expect(record.result.items.map(i => i.severity)).toEqual(['fix', 'suggest', 'suggest']);
+    expect(record.result.items.map(i => i.rule)).toEqual([undefined, undefined, undefined]);
+    expect(record.result.notices).toEqual(['PII_IN_TEXT']);
+  });
+
+  it('알림이 모르는 값뿐이거나 배열이 아니면 알림 없음(결과는 그대로 쓴다)', async () => {
+    fake.state.reply = reply({ items: [item({ severity: 'fix' })], notices: ['NEW_ONE'] });
+    const requester = createAiRequester(deps);
+    const { record } = await requester.structured(story(REQUEST), 'SPELL');
+    expect(aiResultSafetyNotices(record)).toEqual([]);
+
+    fake.state.reply = () =>
+      Promise.resolve({
+        button: 'FEEDBACK',
+        result: { praise: 'p', improve: ['i'], notices: 'PII_IN_TEXT' },
+        receivedAt: 1,
+        textHash: 'x',
+      });
+    const feedback = await createAiRequester(deps).structured(story(REQUEST), 'FEEDBACK');
+    expect(aiResultSafetyNotices(feedback.record)).toEqual([]);
+  });
+
+  it('한마디·방향 결과에도 알림이 붙는다', async () => {
+    fake.state.reply = input =>
+      Promise.resolve({
+        button: input.button,
+        result:
+          input.button === 'FEEDBACK'
+            ? { praise: 'p', improve: ['i'], notices: ['PROFANITY_IN_TEXT'] }
+            : { ideas: [{ text: 'a' }], notices: ['PII_IN_TEXT'] },
+        receivedAt: 1,
+        textHash: 'x',
+      });
+    const requester = createAiRequester(deps);
+    const feedback = await requester.structured(story(BODY), 'FEEDBACK');
+    const direction = await requester.structured(story(BODY), 'DIRECTION');
+    expect(aiResultSafetyNotices(feedback.record)).toEqual(['PROFANITY_IN_TEXT']);
+    expect(aiResultSafetyNotices(direction.record)).toEqual(['PII_IN_TEXT']);
+  });
+
+  it('쓰기 칸 형광: 고쳐요만 지금 색, 권장해요·그대로 둬도 돼요는 옅게', () => {
+    expect(spellHighlightTone('fix')).toBe('strong');
+    expect(spellHighlightTone('suggest')).toBe('soft');
+    expect(spellHighlightTone('keep')).toBe('soft');
   });
 });
 

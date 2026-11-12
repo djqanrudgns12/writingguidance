@@ -23,6 +23,15 @@ import type { Snapshots } from '../realtime/snapshots.ts';
 import { hashArgs, type CommandKey } from '../store/repos/commands.ts';
 import type { Repos } from '../store/repos/index.ts';
 import { roomStatusAt, type StoredRoom } from '../store/repos/rooms.ts';
+import {
+  finalizeDirection,
+  finalizeFeedback,
+  finalizeSpell,
+  maskForAi,
+  unmaskForStudentText,
+  userTagOf,
+  type Masking,
+} from './aiSafety.ts';
 import { chunkForSpell, mapLimited } from './spellChunks.ts';
 
 /**
@@ -68,6 +77,12 @@ export interface AiTicket {
   readonly textHash: string;
   readonly key: CommandKey;
   readonly startedAt: number;
+  /** 가리기 전 글(맞춤법 등급·위치를 원문 전체로 매긴다, docs/ai-harness.md S-06) */
+  readonly realText: string;
+  /** 가림 대응표(요청 안에서만) */
+  readonly masking: Masking;
+  /** `metadata.user_id`용 불투명 ID */
+  readonly userTag: string;
 }
 
 export type Prepared =
@@ -176,10 +191,15 @@ export function prepareAiRequest(deps: AiRequestDeps, student: AiStudent, body: 
     factMode: variant.lens.factMode === 'question' ? 'question' : 'none',
   };
   const prompts = new Map(variant.questions.map(q => [q.id as string, q.prompt]));
-  const helpNotes = body.meta.helpNotes
+  const helpNotesRaw = body.meta.helpNotes
     .filter(n => n.note.trim().length > 0 && prompts.has(n.questionId))
     .map(n => ({ question: prompts.get(n.questionId) ?? '', note: n.note }));
-  const { text, range } = fitInput(body, p.AI_MAX_INPUT_CHARS, p.AI_SPELL_MAX_CHARS);
+  const { text: realText, range } = fitInput(body, p.AI_MAX_INPUT_CHARS, p.AI_SPELL_MAX_CHARS);
+  // 보내기 전에 개인정보·학생 글 속 비속어를 가리고 1인칭 위험 신호를 본다(docs/ai-harness.md L0).
+  const masked = maskForAi(realText, helpNotesRaw);
+  const text = masked.text;
+  const helpNotes = masked.helpNotes;
+  if (masked.masking.care) deps.log.info('ai_care_signal', { detail: body.button });
   const input: AiInput = {
     button: body.button,
     genre: doc.genre,
@@ -193,10 +213,23 @@ export function prepareAiRequest(deps: AiRequestDeps, student: AiStudent, body: 
       : {}),
     range,
     text,
+    ...(masked.masking.care ? { care: true } : {}),
   };
   return {
     kind: 'ready',
-    ticket: { usageId, day, roomId: room.id, button: body.button, input, textHash, key, startedAt: now },
+    ticket: {
+      usageId,
+      day,
+      roomId: room.id,
+      button: body.button,
+      input,
+      textHash,
+      key,
+      startedAt: now,
+      realText,
+      masking: masked.masking,
+      userTag: userTagOf(student.participantId),
+    },
   };
 }
 
@@ -214,7 +247,14 @@ export async function runStructuredRequest(
   const usage: Usage[] = [];
   const untrack = track(deps, ticket, signal);
   try {
-    const runDeps = { ai, config: config.product, signal: untrack.signal, now: deps.now };
+    const runDeps = {
+      ai,
+      config: config.product,
+      signal: untrack.signal,
+      now: deps.now,
+      userTag: ticket.userTag,
+      log: attemptLog(deps, ticket),
+    };
     let result: unknown;
     if (ticket.button === 'SPELL') {
       const chunks = chunkForSpell(ticket.input.text, config.product.AI_SPELL_CHUNK_CHARS);
@@ -242,12 +282,20 @@ export async function runStructuredRequest(
         usage.push(...part.usage);
         items.push(...part.value.items);
       }
-      result = { items: items.slice(0, LIMITS.spellItems) };
-    } else {
-      const button = ticket.button === 'FEEDBACK' ? 'FEEDBACK' : 'DIRECTION';
-      const reply = await runStructured(runDeps, { ...ticket.input, button });
+      result = finalizeSpell(
+        items.slice(0, LIMITS.spellItems),
+        ticket.realText,
+        ticket.input.genre,
+        ticket.masking,
+      );
+    } else if (ticket.button === 'FEEDBACK') {
+      const reply = await runStructured(runDeps, { ...ticket.input, button: 'FEEDBACK' });
       usage.push(...reply.usage);
-      result = reply.value;
+      result = finalizeFeedback(reply.value, ticket.masking);
+    } else {
+      const reply = await runStructured(runDeps, { ...ticket.input, button: 'DIRECTION' });
+      usage.push(...reply.usage);
+      result = finalizeDirection(reply.value, ticket.masking);
     }
     const response: AiStructuredResult = {
       button: ticket.button,
@@ -292,11 +340,20 @@ export async function* runPolishRequest(
   };
   try {
     const lines = runPolish(
-      { ai, config: deps.config.product, signal: untrack.signal, now: deps.now },
+      {
+        ai,
+        config: deps.config.product,
+        signal: untrack.signal,
+        now: deps.now,
+        userTag: ticket.userTag,
+        log: attemptLog(deps, ticket),
+      },
       { ...ticket.input, button: 'POLISH' },
       u => usage.push(u),
     );
-    for await (const line of lines) {
+    for await (const raw of lines) {
+      // 자리표시자를 되돌린다(개인정보는 학생 자신의 글이라 원래 값, 가린 비속어는 ○○, PO-06).
+      const line = raw.t === 'text' ? { ...raw, d: unmaskForStudentText(raw.d, ticket.masking) } : raw;
       if (line.t === 'done') finished = { status: 'OK', code: null };
       if (line.t === 'error') {
         finished = { status: REFUNDED_CODES.has(line.code) ? 'REFUNDED' : 'FAILED', code: line.code };
@@ -311,6 +368,24 @@ export async function* runPolishRequest(
     settle(deps, ticket, finished.status, finished.code, usage);
     untrack.done();
   }
+}
+
+/** 실패한 시도만 메타데이터로 남긴다(버튼·모델·생각 깊이·결과·걸린 시간·걸린 규칙 ID, 글 내용 없음, PRD 6.6). */
+function attemptLog(deps: AiRequestDeps, ticket: AiTicket) {
+  return {
+    attempt(
+      a: { readonly model: string; readonly effort: string },
+      outcome: string,
+      ms: number,
+      detail?: string,
+    ) {
+      if (outcome === 'ok') return;
+      deps.log.warn('ai_attempt', {
+        detail: `${ticket.button} ${a.model} ${a.effort} ${outcome}${detail ? ` ${detail}` : ''}`,
+        ms,
+      });
+    },
+  };
 }
 
 function requireAi(deps: AiRequestDeps): AiPort {

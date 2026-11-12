@@ -4,7 +4,12 @@
  * 입력칸 값·선택·초점은 건드리지 않는다(반영 문 규칙 밖에서도 언제든 다시 그려도 된다).
  */
 export interface MirrorDecorations {
-  readonly highlights: ReadonlyArray<{ readonly start: number; readonly end: number }>;
+  /** `tone: 'soft'`는 `data-mirror-tone="soft"`로 그린다(옅은 색 + 점선 밑줄). 겹치면 먼저 연 형광의 세기를 따른다. */
+  readonly highlights: ReadonlyArray<{
+    readonly start: number;
+    readonly end: number;
+    readonly tone?: 'strong' | 'soft' | undefined;
+  }>;
   readonly carets: ReadonlyArray<{ readonly at: number; readonly kind: 'teacher' | 'student' }>;
 }
 
@@ -107,12 +112,18 @@ export function createMirror(field: HTMLTextAreaElement | HTMLInputElement, host
   const render = (text: string, decorations: MirrorDecorations) => {
     lastText = text;
     lastDecorations = decorations;
-    type Mark = { at: number; open?: boolean; close?: boolean; caret?: 'teacher' | 'student' };
+    type Mark = {
+      at: number;
+      open?: boolean;
+      close?: boolean;
+      soft?: boolean;
+      caret?: 'teacher' | 'student';
+    };
     const marks: Mark[] = [];
     for (const h of decorations.highlights) {
       const s = clamp(h.start, text.length);
       const e = clamp(h.end, text.length);
-      if (e > s) marks.push({ at: s, open: true }, { at: e, close: true });
+      if (e > s) marks.push({ at: s, open: true, soft: h.tone === 'soft' }, { at: e, close: true });
     }
     for (const c of decorations.carets) marks.push({ at: clamp(c.at, text.length), caret: c.kind });
     marks.sort((a, b) => a.at - b.at || Number(Boolean(b.close)) - Number(Boolean(a.close)));
@@ -135,6 +146,7 @@ export function createMirror(field: HTMLTextAreaElement | HTMLInputElement, host
         if (depth === 0) {
           const span = doc.createElement('span');
           span.dataset['mirrorMark'] = 'highlight';
+          if (m.soft) span.dataset['mirrorTone'] = 'soft';
           frag.appendChild(span);
           current = span;
         }

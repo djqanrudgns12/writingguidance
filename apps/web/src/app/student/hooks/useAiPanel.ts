@@ -6,13 +6,16 @@ import type { AppDeps } from '../../../application/deps.ts';
 import {
   activityFor,
   aiResultNotices,
+  aiResultSafetyNotices,
   aiTextHash,
   createAiRequester,
   locateSpellItems,
+  spellHighlightTone,
   type AiDocInput,
   type LocatedSpellItem,
   type PolishHandle,
 } from '../../../application/requestAi.ts';
+import type { AiResultNotice } from '../../../ports/api.ts';
 import type { EditorBinding } from '../../../ports/editor.ts';
 import type { AiResultRecord, AiResultRecordOf } from '../../../ports/localStore.ts';
 import type { ConnectionState } from '../../../ports/realtime.ts';
@@ -20,6 +23,7 @@ import {
   spellKindFromLabel,
   type AiChipView,
   type AiChipViewState,
+  type ResultNoticeView,
   type ResultPanelView,
 } from '../../../ui/screens/student/write/types.ts';
 import { errorCodeOf } from '../errorCode.ts';
@@ -43,6 +47,11 @@ const STATE_OF: Readonly<Record<AiChipModel['state'], AiChipViewState>> = {
   stale: 'stale',
   fresh: 'fresh',
   ready: 'idle',
+};
+
+const NOTICE_VIEW: Readonly<Record<AiResultNotice, ResultNoticeView>> = {
+  PII_IN_TEXT: 'personalInfo',
+  PROFANITY_IN_TEXT: 'kindWords',
 };
 
 type Records = Partial<{ [B in AiButton]: AiResultRecordOf<B> }>;
@@ -147,15 +156,19 @@ export function useAiPanel(args: AiPanelArgs): AiPanel {
   );
 
   // 고친 곳(더 찾지 못하는 항목)은 형광을 지운다. 글이 바뀌면 자리를 다시 맞춘다.
+  // 형광은 거울 층에만 그려 입력칸 값·선택·초점을 건드리지 않는다. 권장해요는 옅은 색(등급별 세기).
   useEffect(() => {
     if (!binding || activeSpell === null) return;
-    const range = located[activeSpell]?.range;
-    if (!range) {
+    const item = located[activeSpell];
+    const range = item?.range;
+    if (!item || !range) {
       binding.highlight([]);
       setActiveSpell(null);
       return;
     }
-    binding.highlight([{ field: 'body', start: range.start, end: range.end }]);
+    binding.highlight([
+      { field: 'body', start: range.start, end: range.end, tone: spellHighlightTone(item.severity) },
+    ]);
   }, [binding, located, activeSpell]);
 
   const stopPolish = () => {
@@ -232,10 +245,14 @@ export function useAiPanel(args: AiPanelArgs): AiPanel {
 
   const onSpellItem = (itemId: string) => {
     const index = Number(itemId.slice('spell-'.length));
-    const range = located[index]?.range;
-    if (!binding || !range) return;
+    const item = located[index];
+    const range = item?.range;
+    if (!binding || !item || !range) return;
     setActiveSpell(index);
-    binding.highlight([{ field: 'body', start: range.start, end: range.end }]);
+    binding.highlight([
+      { field: 'body', start: range.start, end: range.end, tone: spellHighlightTone(item.severity) },
+    ]);
+    // 선택은 반영 문이 열린 뒤에만 한다(`binding.select`가 기다린다, PLAN §6.3).
     void binding.select({ field: 'body', start: range.start, end: range.end });
   };
 
@@ -286,6 +303,7 @@ function panelView(
     receivedAt: record.receivedAt,
     stale: chip?.result === 'stale',
     tailOnly: aiResultNotices(record).includes('aiLongInputTailNotice'),
+    notices: aiResultSafetyNotices(record).map(n => NOTICE_VIEW[n]),
     ...(chip && chip.cooldownLeftSec > 0 ? { refreshCooldownSeconds: chip.cooldownLeftSec } : {}),
   };
   switch (record.button) {
@@ -301,6 +319,8 @@ function panelView(
             suggestion: item.suggestion,
             reason: item.reason,
             kind: spellKindFromLabel(item.kind),
+            severity: item.severity,
+            ruleLabel: item.rule?.label,
             locatable: item.range !== null,
           })),
         },

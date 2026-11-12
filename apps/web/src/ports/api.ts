@@ -135,6 +135,33 @@ export interface TeacherPinInput {
 export const SPELL_KINDS = ['맞춤법', '띄어쓰기', '문장부호'] as const;
 export type SpellKind = (typeof SPELL_KINDS)[number];
 
+/** 맞춤법 등급(docs/ai-harness.md 5절 S-06): 고쳐요 / 권장해요 / 그대로 둬도 돼요. 응답 계약 값이다. */
+export const SPELL_SEVERITIES = ['fix', 'suggest', 'keep'] as const;
+export type SpellSeverity = (typeof SPELL_SEVERITIES)[number];
+
+/** 결과에 붙는 알림(학생 글 속 개인정보 P-01·비속어 S-09). 응답 계약 값이다. */
+export const AI_RESULT_NOTICES = ['PII_IN_TEXT', 'PROFANITY_IN_TEXT'] as const;
+export type AiResultNotice = (typeof AI_RESULT_NOTICES)[number];
+
+const isAiResultNotice = (value: unknown): value is AiResultNotice =>
+  (AI_RESULT_NOTICES as readonly unknown[]).includes(value);
+
+/**
+ * 알림 칸: 아는 값만 남긴다(서버가 먼저 새 알림을 더해도 결과 전체를 버리지 않게).
+ * 없거나 배열이 아니거나 남는 것이 없으면 칸을 비운다.
+ */
+const noticesSchema = z
+  .unknown()
+  .transform((raw): AiResultNotice[] | undefined => {
+    if (!Array.isArray(raw)) return undefined;
+    const known = [...new Set(raw.filter(isAiResultNotice))];
+    return known.length > 0 ? known : undefined;
+  })
+  .optional();
+
+/** 근거(S-07): 서버 표에서 붙인 쉬운 이름과 국립국어원 주소. 모양이 틀리면 근거만 버린다. */
+const spellRuleSchema = z.object({ id: z.string().min(1), label: z.string().min(1), url: z.string() });
+
 export const spellResultSchema = z.object({
   items: z.array(
     z.object({
@@ -143,8 +170,12 @@ export const spellResultSchema = z.object({
       reason: z.string(),
       kind: z.enum(SPELL_KINDS),
       context: z.object({ before: z.string(), after: z.string() }),
+      // 없으면 등급 전에 받은(저장된) 결과라 지금처럼 `fix`, 모르는 값은 확신이 없다고 보고 `suggest`(5절 보정 4번).
+      severity: z.enum(SPELL_SEVERITIES).default('fix').catch('suggest'),
+      rule: spellRuleSchema.optional().catch(undefined),
     }),
   ),
+  notices: noticesSchema,
 });
 export type SpellResult = z.output<typeof spellResultSchema>;
 export type SpellItem = SpellResult['items'][number];
@@ -155,11 +186,13 @@ export const feedbackResultSchema = z.object({
   factCheck: z.string().optional(),
   eraNote: z.string().optional(),
   softenNote: z.string().optional(),
+  notices: noticesSchema,
 });
 export type FeedbackResult = z.output<typeof feedbackResultSchema>;
 
 export const directionResultSchema = z.object({
   ideas: z.array(z.object({ text: z.string().min(1), label: z.string().optional() })).min(1),
+  notices: noticesSchema,
 });
 export type DirectionResult = z.output<typeof directionResultSchema>;
 

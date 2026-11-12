@@ -26,6 +26,11 @@ export interface AiInput {
   readonly song?: { readonly mood: string; readonly tempo: string };
   readonly range: 'ALL' | 'TAIL';
   readonly text: string;
+  /**
+   * 1인칭 위험 신호(docs/ai-harness.md L0 R-01)가 글에 있음. 한마디가 고칠 점보다 마음을 먼저 알아주게 한다.
+   * 무엇이 걸렸는지는 보내지 않는다.
+   */
+  readonly care?: boolean;
 }
 
 export interface Usage {
@@ -43,6 +48,10 @@ export interface CallOptions {
   readonly serverFallback?: boolean;
   /** 형식이 깨져 다시 묻는 경우 덧붙이는 한 줄(PRD 6.5 "형식을 고쳐 줘") */
   readonly formatRetry?: boolean;
+  /** 출력 검사(L2)에 걸려 다시 묻는 경우 덧붙이는 한 줄 */
+  readonly safetyRetry?: boolean;
+  /** 남용 탐지용 불투명 사용자 ID(`metadata.user_id`, docs/ai-harness.md M-04). 이름·기기 정보가 아니다. */
+  readonly userTag?: string;
 }
 
 export type AiStructured<B extends Exclude<AiButton, 'POLISH'>> = B extends 'SPELL'
@@ -62,7 +71,16 @@ export interface AiTextStream extends AsyncIterable<string> {
 }
 
 /** 어댑터가 던지는 실패 종류. `run.ts`가 이것으로 재시도·대체를 정한다(PLAN §8.2 표). */
-export type AiFailureKind = 'timeout' | 'format' | 'limit' | 'transient' | 'refusal' | 'aborted' | 'fatal';
+export type AiFailureKind =
+  | 'timeout'
+  | 'format'
+  | 'limit'
+  | 'transient'
+  | 'refusal'
+  | 'aborted'
+  | 'fatal'
+  /** 출력 검사(docs/ai-harness.md L2 G 규칙)에 걸림. 메시지에 규칙 ID. */
+  | 'unsafe';
 
 export class AiCallError extends Error {
   readonly kind: AiFailureKind;

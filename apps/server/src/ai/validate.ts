@@ -1,5 +1,16 @@
+import { checkGenerated, endsPolitely } from './guard/outputGuard.ts';
+import { actualKind, fallbackReason, withinEditBudget } from './guard/spellRules.ts';
 import { AiCallError } from './port.ts';
 import { LIMITS, type DirectionResult, type FeedbackResult, type SpellResult } from './schemas.ts';
+
+/** 우리가 넣은 자리표시자(개인정보 `[전화번호1]`, 가린 비속어 `⟦가림1⟧`). 이것이 든 맞춤법 항목은 뺀다(S-08). */
+export const PLACEHOLDER = /\[(?:전화번호|이메일|주민번호|주소)\d+\]|⟦가림\d+⟧/;
+
+/** 응답 단위 규칙(G) 위반: 그 응답을 버리고 다시 묻는다(docs/ai-harness.md L4). */
+function guard(text: string, source: string, speech: boolean): void {
+  const rule = checkGenerated(text, { source, speech });
+  if (rule) throw new AiCallError('unsafe', rule);
+}
 
 /**
  * 받은 결과 다듬기(PLAN §8.5, PRD 6.3 "걸러내기").
@@ -29,6 +40,17 @@ export function fitLength(text: string, max: number): string | null {
   return space > 0 ? head.slice(0, space) : head;
 }
 
+/**
+ * 목록 항목(고칠 점·방향)용: 한도를 조금 넘어 잘린 결과가 해요체로 끝나지 않으면("…흐름이 더") 그 항목만 뺀다.
+ * 잘린 말을 학생에게 보이지도, 그것 때문에 응답 전체를 버리지도 않는다(레드팀 평가에서 발견).
+ */
+const fitItem = (text: string, max: number): string | null => {
+  const fitted = fitLength(text, max);
+  if (fitted === null || fitted.length === 0) return null;
+  if (fitted !== text.trim() && !endsPolitely(fitted)) return null;
+  return fitted;
+};
+
 const mustFit = (text: string, max: number): string => {
   const fitted = fitLength(text, max);
   if (fitted === null || fitted.length === 0) throw new AiCallError('format', 'length');
@@ -41,20 +63,32 @@ const optionalFit = (text: string | undefined, max: number): string | undefined 
   return fitted && fitted.length > 0 ? fitted : undefined;
 };
 
-/** 맞춤법: 글에 없는 `original`, 고친 것과 같은 것, 겹치는 위치는 버린다. 30개 넘으면 앞 30개. */
+/**
+ * 맞춤법(docs/ai-harness.md S-01~S-05·S-08): 항목 단위로 걸러 틀린 항목만 뺀다(응답 전체를 버리지 않음).
+ * 글에 없는 `original`, 고친 것과 같은 것, 겹치는 위치, 자리표시자가 든 것, 문장을 새로 쓰는 수준의 바꿈은 뺀다.
+ * 종류는 실제 변화로 다시 붙이고, 고친 말이 규칙을 어기면 빼고, 이유가 규칙을 어기면 종류별 기본 이유로 바꾼다.
+ * 등급·근거는 원문 전체를 아는 쪽(`application/aiRequest.ts`)이 붙인다.
+ */
 export function cleanSpell(result: SpellResult, text: string): SpellResult {
   const taken: { start: number; end: number }[] = [];
   const items: SpellResult['items'] = [];
   for (const item of result.items) {
     if (items.length >= LIMITS.spellItems) break;
-    if (item.original === item.suggestion) continue;
+    if (PLACEHOLDER.test(item.original) || PLACEHOLDER.test(item.suggestion)) continue;
+    const kind = actualKind(item.original, item.suggestion);
+    if (!kind) continue;
+    if (!withinEditBudget(item.original, item.suggestion)) continue;
+    if (checkGenerated(item.suggestion, { source: text, speech: false })) continue;
     const at = findFree(text, item.original, item.context.before, taken);
     if (at < 0) continue;
     taken.push({ start: at, end: at + item.original.length });
+    const fitted =
+      fitLength(item.reason, LIMITS.spellReason) ?? [...item.reason].slice(0, LIMITS.spellReason).join('');
+    const reason = checkGenerated(fitted, { source: text, speech: true }) ? fallbackReason(kind) : fitted;
     items.push({
       ...item,
-      reason:
-        fitLength(item.reason, LIMITS.spellReason) ?? [...item.reason].slice(0, LIMITS.spellReason).join(''),
+      kind,
+      reason,
       context: {
         before: [...item.context.before].slice(-LIMITS.spellContext).join(''),
         after: [...item.context.after].slice(0, LIMITS.spellContext).join(''),
@@ -65,7 +99,7 @@ export function cleanSpell(result: SpellResult, text: string): SpellResult {
 }
 
 /** `original`이 있는 자리 중 이미 쓴 자리와 겹치지 않는 첫 곳. 앞 글자가 맞는 곳을 먼저 본다. */
-function findFree(
+export function findFree(
   text: string,
   original: string,
   before: string,
@@ -81,30 +115,67 @@ function findFree(
   return -1;
 }
 
-export function cleanFeedback(result: FeedbackResult): FeedbackResult {
-  if (result.improve.length < LIMITS.improveMin) throw new AiCallError('format', 'improve');
-  const out: FeedbackResult = {
-    praise: mustFit(result.praise, LIMITS.praise),
-    improve: result.improve.slice(0, LIMITS.improveMax).map(s => mustFit(s, LIMITS.improve)),
+/**
+ * 대신 써 주기·긴 인용(docs/ai-harness.md D-01·D-02): 화살표·"이렇게 써 보세요" 뒤의 긴 완성 문장, 원문 25자 이상 그대로 옮기기.
+ */
+const REWRITE = /(?:→|->|⇒|로 바꾸면|로 고치면|이렇게 써 ?보세요\s*[:：])\s*["'“‘]?([^"'”’]{18,})/;
+function writesForStudent(s: string, source: string): boolean {
+  if (REWRITE.test(s)) return true;
+  const chars = [...s];
+  for (let i = 0; i + 25 <= chars.length; i++) {
+    if (source.includes(chars.slice(i, i + 25).join(''))) return true;
+  }
+  return false;
+}
+
+export function cleanFeedback(result: FeedbackResult, source = ''): FeedbackResult {
+  const praise = fitItem(result.praise, LIMITS.praise);
+  if (praise === null) throw new AiCallError('format', 'praise');
+  guard(praise, source, true);
+  const improve = result.improve
+    .slice(0, LIMITS.improveMax + 1)
+    .map(s => fitItem(s, LIMITS.improve))
+    .filter((s): s is string => s !== null && !writesForStudent(s, source))
+    .slice(0, LIMITS.improveMax);
+  if (improve.length < LIMITS.improveMin) throw new AiCallError('format', 'improve');
+  for (const s of improve) guard(s, source, true);
+  const note = (t: string | undefined) => {
+    const fitted = optionalFit(t, LIMITS.note);
+    if (fitted) guard(fitted, source, true);
+    return fitted;
   };
-  const factCheck = optionalFit(result.factCheck, LIMITS.note);
-  const eraNote = optionalFit(result.eraNote, LIMITS.note);
-  const softenNote = optionalFit(result.softenNote, LIMITS.note);
+  const factCheck = note(result.factCheck);
+  const eraNote = note(result.eraNote);
+  const softenNote = note(result.softenNote);
   return {
-    ...out,
+    praise,
+    improve,
     ...(factCheck ? { factCheck } : {}),
     ...(eraNote ? { eraNote } : {}),
     ...(softenNote ? { softenNote } : {}),
   };
 }
 
-export function cleanDirection(result: DirectionResult): DirectionResult {
-  if (result.ideas.length < LIMITS.ideasMin) throw new AiCallError('format', 'ideas');
+/** 방향 이름표(D-03): 정해 둔 이름이거나 12자 이내 한글·띄어쓰기만. */
+const LABEL_OK = /^[가-힣 ]{1,12}$/;
+
+export function cleanDirection(result: DirectionResult, source = ''): DirectionResult {
+  const ideas = result.ideas
+    .map(i => ({ text: fitItem(i.text, LIMITS.idea), label: i.label?.trim() }))
+    .filter((i): i is { text: string; label: string | undefined } => i.text !== null)
+    .filter(i => !writesForStudent(i.text, source))
+    .slice(0, LIMITS.ideasMax);
+  if (ideas.length < LIMITS.ideasMin) throw new AiCallError('format', 'ideas');
   return {
-    ideas: result.ideas.slice(0, LIMITS.ideasMax).map(i => ({
-      text: mustFit(i.text, LIMITS.idea),
-      ...(i.label ? { label: [...i.label].slice(0, 12).join('') } : {}),
-    })),
+    ideas: ideas.map(i => {
+      // "제목 후보"·"후렴 후보"처럼 이름표가 후보인 항목은 명사 목록이라 해요체 검사를 하지 않는다(레드팀 평가에서 발견).
+      guard(i.text, source, !(i.label ?? '').endsWith('후보'));
+      const label =
+        i.label && LABEL_OK.test(i.label) && !checkGenerated(i.label, { source, speech: false })
+          ? i.label
+          : undefined;
+      return { text: i.text, ...(label ? { label } : {}) };
+    }),
   };
 }
 

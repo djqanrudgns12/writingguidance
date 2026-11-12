@@ -55,7 +55,12 @@ function fakeSyncedDoc(netDoc: Y.Doc): SyncedDoc {
  * 학생과 교사 입력칸이 jsdom의 같은 문서에 있어 초점은 하나만 가질 수 있다. 실제로는 서로 다른 기기라,
  * 학생 칸에만 초점을 주고 교사 칸은 초점 없이 입력한다(초점이 없으면 바로 반영하는 것이 맞는 동작).
  */
-function makeHarness(clock: FakeClock, netDoc: Y.Doc, role: 'student' | 'teacher'): Harness {
+function makeHarness(
+  clock: FakeClock,
+  netDoc: Y.Doc,
+  role: 'student' | 'teacher',
+  mirror?: HTMLElement,
+): Harness {
   const el = document.createElement('textarea');
   document.body.appendChild(el);
   let userActing = false;
@@ -87,7 +92,7 @@ function makeHarness(clock: FakeClock, netDoc: Y.Doc, role: 'student' | 'teacher
   }
 
   const editor = mountEditor(
-    { body: el },
+    mirror ? { body: el, mirror } : { body: el },
     fakeSyncedDoc(netDoc),
     { role, readOnly: false, undoGroupMs: config.UNDO_GROUP_MS.normal, diagnosticsEnabled: true },
     { config, clock },
@@ -243,6 +248,33 @@ describe('편집기 바인딩', () => {
     expect(student.el.value).toBe('맑은 하늘 한');
     expect(student.netDoc.getText('body').toString()).toBe('맑은 하늘 한');
     expect(teacher.netDoc.getText('body').toString()).toBe('맑은 하늘 한');
+  });
+
+  it('맞춤법 형광(권장해요는 옅게)은 조합 도중에 그려도 입력칸 쓰기 0회이고 거울 층에만 남는다', () => {
+    const clock = new FakeClock();
+    const mirror = document.createElement('div');
+    document.body.appendChild(mirror);
+    const student = makeHarness(clock, new Y.Doc(), 'student', mirror);
+    student.type('되요 진짜루 ');
+    clock.advance(600);
+    const before = student.writes();
+    student.compose(['ㅎ', '하'], () => {
+      student.editor.highlight([
+        { field: 'body', start: 0, end: 2 },
+        { field: 'body', start: 3, end: 6, tone: 'soft' },
+      ]);
+    });
+    expect(student.writes()).toBe(before);
+    expect(student.el.value).toBe('되요 진짜루 하');
+    const marks = [...mirror.querySelectorAll<HTMLElement>('[data-mirror-mark="highlight"]')];
+    expect(marks.map(m => [m.textContent, m.dataset['mirrorTone'] ?? null])).toEqual([
+      ['되요', null],
+      ['진짜루', 'soft'],
+    ]);
+    student.editor.highlight([]);
+    expect(mirror.querySelector('[data-mirror-mark]')).toBeNull();
+    expect(student.writes()).toBe(before);
+    mirror.remove();
   });
 
   it('학생의 되돌리기는 교사가 고친 것을 되돌리지 않는다', () => {

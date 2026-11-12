@@ -10,9 +10,11 @@ import styles from './ResultPanel.module.css';
 import type {
   DirectionIdeaView,
   FeedbackView,
+  ResultNoticeView,
   ResultPanelView,
   SpellItemView,
   SpellKindView,
+  SpellSeverityView,
 } from './types.ts';
 
 /** 기다림 자리표시 카드 3장의 줄 수(결과 카드 모양: 머리 짧은 줄 + 본문 줄, 줄 길이는 CSS). */
@@ -22,6 +24,24 @@ const SPELL_KIND_LABEL: Record<SpellKindView, string> = {
   spelling: ko.student.aiSpellKindSpelling,
   spacing: ko.student.aiSpellKindSpacing,
   punctuation: ko.student.aiSpellKindPunctuation,
+};
+
+/** 등급 글자(색맹이어도 구분되게 늘 글자로도 둔다, 읽기 이름에도 들어간다). */
+const SPELL_SEVERITY_LABEL: Record<SpellSeverityView, string> = {
+  fix: ko.student.aiSpellSeverityFix,
+  suggest: ko.student.aiSpellSeveritySuggest,
+  keep: ko.student.aiSpellSeverityKeep,
+};
+
+const SPELL_SEVERITY_CLASS: Record<SpellSeverityView, string | undefined> = {
+  fix: undefined,
+  suggest: styles.spellItemSuggest,
+  keep: styles.spellItemKeep,
+};
+
+const NOTICE_TEXT: Record<ResultNoticeView, string> = {
+  personalInfo: ko.student.aiNoticePersonalInfo,
+  kindWords: ko.student.aiNoticeKindWords,
 };
 
 export interface ResultPanelProps {
@@ -190,6 +210,12 @@ function ResultPanelBody({ view, mineText, onSpellItem }: ResultPanelBodyProps) 
           <span>{ko.student.aiLongInputTailNotice}</span>
         </p>
       ) : null}
+      {(view.notices ?? []).map(notice => (
+        <p key={notice} className={styles.safetyNotice} data-notice={notice}>
+          <Icon name="notice" size={16} />
+          <span>{NOTICE_TEXT[notice]}</span>
+        </p>
+      ))}
       {content.kind === 'SPELL' ? (
         <SpellList items={content.items} activeItemId={content.activeItemId} onSpellItem={onSpellItem} />
       ) : null}
@@ -226,50 +252,121 @@ function SpellList({
     );
   }
 
+  // 고쳐요가 맨 위(받은 순서 그대로), 권장해요는 그 아래, 그대로 둬도 돼요는 접어 둔다(docs/ai-harness.md 5절).
+  const fix = items.filter(item => item.severity === 'fix');
+  const suggest = items.filter(item => item.severity === 'suggest');
+  const keep = items.filter(item => item.severity === 'keep');
+  const row = (item: SpellItemView) => (
+    <SpellRow key={item.id} item={item} active={activeItemId === item.id} onSpellItem={onSpellItem} />
+  );
+
   return (
-    <ul className={styles.spellList}>
-      {items.map(item => {
-        const inner = (
-          <>
-            <span className={styles.spellTop}>
-              <span className={styles.spellKind}>{SPELL_KIND_LABEL[item.kind]}</span>
-              <span className={styles.spellChange}>
-                <span className={styles.original}>{item.original}</span>
-                <span aria-hidden="true" className={styles.arrow}>
-                  {'→'}
-                </span>
-                <strong className={styles.suggestion}>{item.suggestion}</strong>
-              </span>
+    <div className={styles.spellGroups} data-spell-groups="">
+      {fix.length === 0 ? (
+        <p className={styles.emptyLine} data-spell-no-fix="">
+          <Icon name="check" size={20} />
+          <span>{ko.student.aiSpellNoFixNeeded}</span>
+        </p>
+      ) : (
+        <ul className={styles.spellList} data-severity-group="fix">
+          {fix.map(row)}
+        </ul>
+      )}
+      {suggest.length > 0 ? (
+        <>
+          <p className={styles.guideLine}>
+            <Icon name="notice" size={16} />
+            <span>{ko.student.aiSpellSuggestGuide}</span>
+          </p>
+          <ul className={styles.spellList} data-severity-group="suggest">
+            {suggest.map(row)}
+          </ul>
+        </>
+      ) : null}
+      {keep.length > 0 ? (
+        // 기본으로 접혀 있다. 고칠 곳 수에 넣지 않으려고 이 안의 개수만 따로 센다.
+        <details className={styles.keepGroup} data-severity-group="keep">
+          <summary className={styles.keepSummary}>
+            <Icon name="show" size={16} />
+            <span>
+              {ko.student.aiSpellKeepSummaryPrefix}
+              <span className="tabular">{keep.length}</span>
+              {ko.student.aiSpellKeepSummarySuffix}
             </span>
-            <span className={styles.reason}>{item.reason}</span>
-          </>
-        );
-        return (
-          <li key={item.id}>
-            {item.locatable ? (
-              <button
-                type="button"
-                className={cx(styles.spellItem, activeItemId === item.id && styles.spellItemActive)}
-                aria-current={activeItemId === item.id ? 'true' : undefined}
-                // 쓰기 칸의 선택·조합을 끊지 않도록 누를 때 초점을 가져오지 않는다.
-                onMouseDown={event => event.preventDefault()}
-                onClick={() => onSpellItem(item.id)}
-              >
-                {inner}
-              </button>
-            ) : (
-              <div className={cx(styles.spellItem, styles.spellItemLocked)} aria-disabled="true">
-                {inner}
-                <span className={styles.unlocated}>
-                  <Icon name="warning" size={16} />
-                  {ko.student.aiSpellUnlocatedHint}
-                </span>
-              </div>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+          </summary>
+          <div className={styles.keepBody}>
+            <p className={styles.guideLine}>{ko.student.aiSpellKeepGuide}</p>
+            <ul className={styles.spellList}>{keep.map(row)}</ul>
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function SpellRow({
+  item,
+  active,
+  onSpellItem,
+}: {
+  readonly item: SpellItemView;
+  readonly active: boolean;
+  readonly onSpellItem: (itemId: string) => void;
+}) {
+  // 바꿀 말이 비면(학생 글 속 비속어 자리, S-09) 원래 말을 되풀이하지 않고 이유만 보인다.
+  const showChange = item.suggestion !== '';
+  const inner = (
+    <>
+      <span className={styles.spellTop}>
+        {item.severity === 'fix' ? (
+          // 고쳐요는 지금 모양 그대로 두고, 읽기 이름에만 등급을 넣는다.
+          <span className="visually-hidden">{SPELL_SEVERITY_LABEL.fix}</span>
+        ) : (
+          <span className={styles.severityBadge} data-severity={item.severity}>
+            {SPELL_SEVERITY_LABEL[item.severity]}
+          </span>
+        )}
+        <span className={styles.spellKind}>{SPELL_KIND_LABEL[item.kind]}</span>
+        {showChange ? (
+          <span className={styles.spellChange}>
+            <span className={styles.original}>{item.original}</span>
+            <span aria-hidden="true" className={styles.arrow}>
+              {'→'}
+            </span>
+            <strong className={styles.suggestion}>{item.suggestion}</strong>
+          </span>
+        ) : null}
+      </span>
+      <span className={styles.reasonLine}>
+        <span className={styles.reason}>{item.reason}</span>
+        {item.ruleLabel ? <span className={styles.ruleLabel}>{item.ruleLabel}</span> : null}
+      </span>
+    </>
+  );
+  const severityClass = SPELL_SEVERITY_CLASS[item.severity];
+  return (
+    <li data-severity={item.severity}>
+      {item.locatable ? (
+        <button
+          type="button"
+          className={cx(styles.spellItem, severityClass, active && styles.spellItemActive)}
+          aria-current={active ? 'true' : undefined}
+          // 쓰기 칸의 선택·조합을 끊지 않도록 누를 때 초점을 가져오지 않는다.
+          onMouseDown={event => event.preventDefault()}
+          onClick={() => onSpellItem(item.id)}
+        >
+          {inner}
+        </button>
+      ) : (
+        <div className={cx(styles.spellItem, severityClass, styles.spellItemLocked)} aria-disabled="true">
+          {inner}
+          <span className={styles.unlocated}>
+            <Icon name="warning" size={16} />
+            {ko.student.aiSpellUnlocatedHint}
+          </span>
+        </div>
+      )}
+    </li>
   );
 }
 

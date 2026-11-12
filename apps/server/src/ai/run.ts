@@ -10,6 +10,7 @@ import {
   type CallOptions,
   type Usage,
 } from './port.ts';
+import { PolishGate } from './guard/polishGate.ts';
 import { cleanDirection, cleanFeedback, cleanSpell, stripPolishPreamble } from './validate.ts';
 
 /**
@@ -38,10 +39,12 @@ export interface Attempt {
   readonly maxTokens: number;
   readonly serverFallback?: boolean;
   readonly formatRetry?: boolean;
+  readonly safetyRetry?: boolean;
 }
 
 export interface RunLog {
-  attempt(a: Attempt, outcome: 'ok' | AiFailureKind, ms: number): void;
+  /** `detail`: 출력 검사에 걸린 규칙 ID 등(글 내용은 넣지 않는다). */
+  attempt(a: Attempt, outcome: 'ok' | AiFailureKind, ms: number, detail?: string): void;
 }
 
 const MODEL_KEY = {
@@ -104,6 +107,12 @@ export function nextAttempt(
         once('limit', { ...prev, maxTokens: Math.ceil(prev.maxTokens * 1.5) }) ??
         (onFallback ? null : once('fallback', fallbackAttempt(config, prev, false)))
       );
+    // 출력 검사에 걸리면 같은 모델로 "규칙을 지켜 다시" 한 번, 그래도면 대체 모델로 한 번(docs/ai-harness.md L4).
+    case 'unsafe':
+      return (
+        once('unsafe', { ...prev, safetyRetry: true }) ??
+        (onFallback ? null : once('fallback', { ...fallbackAttempt(config, prev, false), safetyRetry: true }))
+      );
     case 'transient':
       return onFallback ? null : once('fallback', fallbackAttempt(config, prev, false));
     case 'refusal':
@@ -122,6 +131,7 @@ export function errorCodeFor(kind: AiFailureKind): ErrorCode {
     case 'limit':
       return 'E_AI_FORMAT';
     case 'refusal':
+    case 'unsafe':
       return 'E_AI_REFUSED';
     default:
       return 'E_AI_PROVIDER';
@@ -134,6 +144,8 @@ export interface RunDeps {
   readonly signal: AbortSignal;
   readonly log?: RunLog;
   readonly now?: () => number;
+  /** `metadata.user_id`로 보낼 불투명 ID(docs/ai-harness.md M-04) */
+  readonly userTag?: string;
   /**
    * 요청 전체의 절대 마감 시각(ms). 맞춤법 조각처럼 버튼 한 번이 여러 호출로 나뉘면 부르는 쪽이 한 번 정해 모두에 넘긴다
    * (P5-5b 검토 B09). 없으면 이 호출이 시작할 때 `structuredBudgetMs`로 정한다.
@@ -181,7 +193,11 @@ export async function runStructured<B extends Structured>(
     const cutByDeadline = left < perAttemptMs;
     const signal = attemptSignal(deps.signal, Math.min(perAttemptMs, left));
     try {
-      const reply = await deps.ai.structured(input, { ...attempt, signal });
+      const reply = await deps.ai.structured(input, {
+        ...attempt,
+        signal,
+        ...(deps.userTag ? { userTag: deps.userTag } : {}),
+      });
       usage.push(reply.usage);
       const value = clean(input, reply.value as AiStructured<B>);
       deps.log?.attempt(attempt, 'ok', now() - started);
@@ -189,7 +205,12 @@ export async function runStructured<B extends Structured>(
     } catch (error) {
       let kind = error instanceof AiCallError ? error.kind : 'fatal';
       if (kind === 'aborted' && !deps.signal.aborted) kind = 'timeout';
-      deps.log?.attempt(attempt, kind, now() - started);
+      deps.log?.attempt(
+        attempt,
+        kind,
+        now() - started,
+        kind === 'unsafe' ? (error as Error).message : undefined,
+      );
       if (deps.signal.aborted) throw new AppError('E_AI_TIMEOUT');
       lastKind = kind;
       if (kind === 'timeout' && cutByDeadline) break;
@@ -207,9 +228,9 @@ function clean<B extends Structured>(
     case 'SPELL':
       return cleanSpell(value as AiStructured<'SPELL'>, input.text) as AiStructured<B>;
     case 'FEEDBACK':
-      return cleanFeedback(value as AiStructured<'FEEDBACK'>) as AiStructured<B>;
+      return cleanFeedback(value as AiStructured<'FEEDBACK'>, input.text) as AiStructured<B>;
     default:
-      return cleanDirection(value as AiStructured<'DIRECTION'>) as AiStructured<B>;
+      return cleanDirection(value as AiStructured<'DIRECTION'>, input.text) as AiStructured<B>;
   }
 }
 
@@ -260,8 +281,14 @@ export async function* runPolish(
     const started = now();
     let gotByte = false;
     let leading = true;
+    // 문장 단위 지연 공개(docs/ai-harness.md PO-01): 문장 끝까지 모아 검사를 통과한 문장만 내보낸다.
+    const gate = new PolishGate(input.text);
     try {
-      const stream = deps.ai.polish(input, { ...attempt, signal });
+      const stream = deps.ai.polish(input, {
+        ...attempt,
+        signal,
+        ...(deps.userTag ? { userTag: deps.userTag } : {}),
+      });
       for await (const piece of stream) {
         if (!gotByte) {
           gotByte = true;
@@ -274,24 +301,40 @@ export async function* runPolish(
           if (out.trim().length > 0) leading = false;
         }
         if (out.length === 0) continue;
+        const ready = gate.push(out);
+        if (ready.length === 0) continue;
         sentAny = true;
-        yield { t: 'text', d: out };
+        yield { t: 'text', d: ready };
       }
       const end = await stream.done;
+      const rest = gate.finish();
+      if (rest.length > 0) {
+        sentAny = true;
+        yield { t: 'text', d: rest };
+      }
       onUsage(end.usage);
       deps.log?.attempt(attempt, 'ok', now() - started);
       yield { t: 'done', stop: end.stop };
       return;
     } catch (error) {
       clearTimeout(firstByteTimer);
+      controller.abort();
       let kind: AiFailureKind = error instanceof AiCallError ? error.kind : 'fatal';
       if (kind === 'aborted' && !deps.signal.aborted) kind = 'timeout';
-      deps.log?.attempt(attempt, kind, now() - started);
+      deps.log?.attempt(
+        attempt,
+        kind,
+        now() - started,
+        kind === 'unsafe' ? (error as Error).message : undefined,
+      );
       if (deps.signal.aborted) return; // 기기가 패널을 닫음: 조용히 끝(정산은 부른 쪽)
       lastKind = kind;
       // 글자를 이미 보냈다면 시간 초과·형식 재시도는 하지 않는다(받은 데까지 보이고 `다시 받기`).
-      if (sentAny && kind !== 'refusal' && kind !== 'transient') break;
+      // 거절·제공사 오류·출력 검사 위반은 보낸 글을 지우고(`reset`) 다시 쓴다.
+      if (sentAny && kind !== 'refusal' && kind !== 'transient' && kind !== 'unsafe') break;
       const next = nextAttempt(deps.config, attempt, kind === 'limit' ? 'format' : kind, tried);
+      // 출력 검사 위반인데 다시 쓸 시도가 없으면, 보낸 글을 지운 뒤 오류로 끝낸다(위반 글이 화면에 남지 않게).
+      if (!next && sentAny && kind === 'unsafe') yield { t: 'reset' };
       if (next && sentAny) yield { t: 'reset' };
       sentAny = false;
       attempt = next;

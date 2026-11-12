@@ -104,8 +104,22 @@ describe('AI 재시도·대체(PLAN §8.2, PRD 6.5)', () => {
     expect(fb.maxTokens).toBe(800 + h.medium);
   });
 
-  it('다듬은 글: 글자를 보낸 뒤 거절되면 reset 뒤 대체 모델이 처음부터', async () => {
+  it('다듬은 글: 첫 문장이 끝나기 전에 거절되면 화면에 나간 글이 없어 지우지 않고 대체 모델이 쓴다', async () => {
+    // 문장 단위로 내보내므로(docs/ai-harness.md PO-01) 첫 마침표 전 실패는 아무것도 보내지 않았다.
     const ai = createFakeAi({ script: [{ fail: 'refusal', failAfterChars: 8 }], chunkChars: 4 });
+    const lines: PolishLine[] = [];
+    for await (const line of runPolish(deps(ai), input('POLISH'), () => {})) lines.push(line);
+    const kinds = lines.map(l => l.t);
+    expect(kinds).not.toContain('reset');
+    expect(kinds.at(-1)).toBe('done');
+    expect(lines.flatMap(l => (l.t === 'text' ? [l.d] : [])).join('')).toBe(
+      '나는 오늘 학교에 갔다. 그리고 돼요 라고 말했다.',
+    );
+  });
+
+  it('다듬은 글: 문장을 보낸 뒤 거절되면 reset 뒤 대체 모델이 처음부터', async () => {
+    // 첫 문장("나는 오늘 학교에 갔다." 13자)을 보낸 뒤 실패하게 한다.
+    const ai = createFakeAi({ script: [{ fail: 'refusal', failAfterChars: 16 }], chunkChars: 4 });
     const lines: PolishLine[] = [];
     for await (const line of runPolish(deps(ai), input('POLISH'), () => {})) lines.push(line);
     const kinds = lines.map(l => l.t);
@@ -154,9 +168,15 @@ describe('결과 다듬기(PLAN §8.5)', () => {
     expect(fitLength('가'.repeat(11), 10)?.length).toBeLessThanOrEqual(10);
     expect(fitLength('가'.repeat(13), 10)).toBeNull();
     expect(() => cleanFeedback({ praise: '좋아요', improve: [] })).toThrow();
-    expect(cleanFeedback({ praise: '좋아요', improve: ['a', 'b', 'c'] }).improve.length).toBe(2);
-    expect(() => cleanDirection({ ideas: [{ text: '하나' }] })).toThrow();
-    expect(cleanDirection({ ideas: [1, 2, 3, 4].map(n => ({ text: `방향${n}` })) }).ideas.length).toBe(3);
+    // 재료는 실제 응답 모양(해요체 한국어)이어야 출력 검사(docs/ai-harness.md G-03·G-07)를 지난다.
+    expect(
+      cleanFeedback({ praise: '좋아요', improve: ['더 써 볼까요?', '이어 볼까요?', '바꿔 볼까요?'] }).improve
+        .length,
+    ).toBe(2);
+    expect(() => cleanDirection({ ideas: [{ text: '하나를 써 봐요.' }] })).toThrow();
+    expect(
+      cleanDirection({ ideas: [1, 2, 3, 4].map(n => ({ text: `${n}번째 장면을 써 봐요.` })) }).ideas.length,
+    ).toBe(3);
   });
 });
 

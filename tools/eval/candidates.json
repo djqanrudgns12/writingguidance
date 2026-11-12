@@ -81,6 +81,22 @@
         "inputUsdPerMTok": 2,
         "outputUsdPerMTok": 10
       }
+    },
+    {
+      "id": "prod",
+      "label": "운영 조합 (U-01: Haiku 5.5, 한마디만 생각 낮음)",
+      "model": "claude-haiku-5-5",
+      "effort": "medium",
+      "efforts": {
+        "SPELL": "medium",
+        "FEEDBACK": "low",
+        "DIRECTION": "medium",
+        "POLISH": "medium"
+      },
+      "pricing": {
+        "inputUsdPerMTok": 0.1,
+        "outputUsdPerMTok": 0.5
+      }
     }
   ],
   "fallback": {

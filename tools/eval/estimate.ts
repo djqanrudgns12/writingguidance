@@ -47,12 +47,26 @@ export const pricingSchema = z
   })
   .strict();
 
+export const effortSchema = z.enum(['off', 'low', 'medium', 'high']);
+export type Effort = z.infer<typeof effortSchema>;
+
+/** 버튼별 생각 깊이(운영 조합처럼 버튼마다 다를 때). 빠진 버튼은 후보의 `effort`를 쓴다. */
+export const buttonEffortsSchema = z
+  .object({
+    SPELL: effortSchema.optional(),
+    FEEDBACK: effortSchema.optional(),
+    DIRECTION: effortSchema.optional(),
+    POLISH: effortSchema.optional(),
+  })
+  .strict();
+
 export const candidateDefSchema = z
   .object({
     id: z.string().min(1),
     label: z.string().min(1),
     model: z.string().min(1),
-    effort: z.enum(['off', 'low', 'medium', 'high']),
+    effort: effortSchema,
+    efforts: buttonEffortsSchema.optional(),
     pricing: pricingSchema,
   })
   .strict();
@@ -83,6 +97,25 @@ export const candidatesConfigSchema = z
 export type Pricing = z.infer<typeof pricingSchema>;
 export type CandidateDef = z.infer<typeof candidateDefSchema>;
 export type CandidatesConfig = z.infer<typeof candidatesConfigSchema>;
+
+/** 그 버튼에서 쓸 생각 깊이(`efforts`가 있으면 그 값, 없으면 `effort`). */
+export function effortFor(candidate: Pick<CandidateDef, 'effort' | 'efforts'>, button: AiButton): Effort {
+  return candidate.efforts?.[button] ?? candidate.effort;
+}
+
+/** 보고서·어림표에 쓰는 생각 깊이 표기. 버튼마다 다르면 다른 버튼만 덧붙인다(예: `medium (FEEDBACK low)`). */
+export function effortLabel(candidate: Pick<CandidateDef, 'effort' | 'efforts'>): string {
+  const diff = AI_BUTTONS.filter(b => effortFor(candidate, b) !== candidate.effort).map(
+    b => `${b} ${effortFor(candidate, b)}`,
+  );
+  return diff.length > 0 ? `${candidate.effort} (${diff.join(', ')})` : candidate.effort;
+}
+
+/** 운영 `prepareAiRequest`와 같은 글 종류별 최소 글자(`AI_MIN_CHARS`). 이보다 짧으면 AI로 보내지 않는다. */
+export function minCharsFor(doc: Pick<EvalDoc, 'genre' | 'subtype' | 'purpose'>): number {
+  return resolveGenreVariant({ genre: doc.genre, subtype: doc.subtype, purpose: doc.purpose }, defaultConfig)
+    .minChars;
+}
 
 export const plantedErrorSchema = z
   .object({
@@ -195,6 +228,8 @@ export interface CandidateCostEstimate {
   readonly label: string;
   readonly model: string;
   readonly effort: CandidateDef['effort'];
+  /** 버튼별 생각 깊이까지 담은 표기(`effortLabel`) */
+  readonly effortLabel: string;
   readonly pricing: Pricing;
   readonly callsPerPass: number;
   readonly totalCalls: number;
@@ -267,7 +302,10 @@ export function estimateEvalCost(
   docs: readonly EvalDoc[],
   config: CandidatesConfig,
   repeat: number = config.defaultRepeat,
+  /** 레드팀처럼 비교 판정을 하지 않는 묶음은 `includeJudge: false`(판정 비용 0). */
+  options: { readonly includeJudge?: boolean } = {},
 ): EvalCostSummary {
+  const includeJudge = options.includeJudge ?? true;
   const totalTextChars = docs.reduce((sum, d) => sum + [...d.text].length, 0);
 
   const candidates: CandidateCostEstimate[] = config.candidates.map(cand => {
@@ -277,7 +315,7 @@ export function estimateEvalCost(
 
     for (const doc of docs) {
       for (const button of AI_BUTTONS) {
-        const est = estimateSingleCallTokens(doc, button, cand.effort);
+        const est = estimateSingleCallTokens(doc, button, effortFor(cand, button));
         callsPerPass += est.calls;
         inputTokensPerPass += est.inputTokens;
         outputTokensPerPass += est.outputTokens;
@@ -295,6 +333,7 @@ export function estimateEvalCost(
       label: cand.label,
       model: cand.model,
       effort: cand.effort,
+      effortLabel: effortLabel(cand),
       pricing: cand.pricing,
       callsPerPass,
       totalCalls,
@@ -313,7 +352,7 @@ export function estimateEvalCost(
   let judgeOutputTokens = 0;
   let batchRequests = 0;
 
-  for (const doc of docs) {
+  for (const doc of includeJudge ? docs : []) {
     const docTokens = Math.ceil([...doc.text].length * TOKENS_PER_CHAR);
     for (const button of judgeButtons) {
       batchRequests += 1;
@@ -370,7 +409,7 @@ export function formatEstimateTable(summary: EvalCostSummary, sourceNote: string
   for (const c of summary.candidates) {
     const rate = `$${c.pricing.inputUsdPerMTok.toFixed(2)} / $${c.pricing.outputUsdPerMTok.toFixed(2)}`;
     lines.push(
-      `| ${c.label} (\`${c.candidateId}\`) | \`${c.model}\` (\`${c.effort}\`) | ${rate} | ${c.totalCalls} | ${c.totalInputTokens.toLocaleString('en-US')} | ${c.totalOutputTokens.toLocaleString('en-US')} | $${c.usdPerPass.toFixed(4)} | $${c.totalUsd.toFixed(4)} |`,
+      `| ${c.label} (\`${c.candidateId}\`) | \`${c.model}\` (\`${c.effortLabel}\`) | ${rate} | ${c.totalCalls} | ${c.totalInputTokens.toLocaleString('en-US')} | ${c.totalOutputTokens.toLocaleString('en-US')} | $${c.usdPerPass.toFixed(4)} | $${c.totalUsd.toFixed(4)} |`,
     );
   }
 
@@ -379,14 +418,16 @@ export function formatEstimateTable(summary: EvalCostSummary, sourceNote: string
   const genOut = summary.candidates.reduce((s, c) => s + c.totalOutputTokens, 0);
   const genOnePass = summary.candidates.reduce((s, c) => s + c.usdPerPass, 0);
   lines.push(
-    `| **생성 합계 (후보 3개)** | — | — | **${genCalls}** | **${genIn.toLocaleString('en-US')}** | **${genOut.toLocaleString('en-US')}** | **$${genOnePass.toFixed(4)}** | **$${summary.generationTotalUsd.toFixed(4)}** |`,
+    `| **생성 합계 (후보 ${summary.candidates.length}개)** | — | — | **${genCalls}** | **${genIn.toLocaleString('en-US')}** | **${genOut.toLocaleString('en-US')}** | **$${genOnePass.toFixed(4)}** | **$${summary.generationTotalUsd.toFixed(4)}** |`,
   );
 
   const j = summary.judge;
   const effInRate = (j.pricing.inputUsdPerMTok * (1 - j.batchDiscount)).toFixed(2);
   const effOutRate = (j.pricing.outputUsdPerMTok * (1 - j.batchDiscount)).toFixed(2);
   lines.push(
-    `| 비교 판정 (Message Batches ${Math.round(j.batchDiscount * 100)}% 할인) | \`${j.model}\` (\`low\`) | $${effInRate} / $${effOutRate} | ${j.batchRequests} | ${j.inputTokens.toLocaleString('en-US')} | ${j.outputTokens.toLocaleString('en-US')} | $${j.totalUsd.toFixed(4)} | $${j.totalUsd.toFixed(4)} |`,
+    j.batchRequests > 0
+      ? `| 비교 판정 (Message Batches ${Math.round(j.batchDiscount * 100)}% 할인) | \`${j.model}\` (\`low\`) | $${effInRate} / $${effOutRate} | ${j.batchRequests} | ${j.inputTokens.toLocaleString('en-US')} | ${j.outputTokens.toLocaleString('en-US')} | $${j.totalUsd.toFixed(4)} | $${j.totalUsd.toFixed(4)} |`
+      : '| 비교 판정 | 없음 (이 묶음은 판정하지 않음) | — | 0 | 0 | 0 | $0.0000 | $0.0000 |',
   );
   lines.push(
     `| **전체 합계 (생성 + 비교 판정, U-11 승인 대상)** | — | — | **${genCalls + j.batchRequests}** | **${(genIn + j.inputTokens).toLocaleString('en-US')}** | **${(genOut + j.outputTokens).toLocaleString('en-US')}** | **$${(genOnePass + j.totalUsd).toFixed(4)}** | **$${summary.grandTotalUsd.toFixed(4)}** |`,

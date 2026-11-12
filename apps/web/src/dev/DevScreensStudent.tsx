@@ -83,14 +83,32 @@ function chips(state: AiChipViewState): AiChipView[] {
   return BUTTONS.map(button => ({ button, state }));
 }
 
-const spellItems: SpellItemView[] = S.spellItems.map((item, index) => ({
-  id: `spell-${index}`,
-  original: item.original,
-  suggestion: item.suggestion,
-  reason: item.reason,
-  kind: spellKindFromLabel(item.kind),
-  locatable: index !== S.spellItems.length - 1,
-}));
+type SpellSample = (typeof S.spellItems | typeof S.spellSuggestItems | typeof S.spellKeepItems)[number];
+
+function spellView(item: SpellSample, id: string, severity: SpellItemView['severity'], locatable = true) {
+  return {
+    id,
+    original: item.original,
+    suggestion: item.suggestion,
+    reason: item.reason,
+    kind: spellKindFromLabel(item.kind),
+    severity,
+    ruleLabel: 'ruleLabel' in item ? item.ruleLabel : undefined,
+    locatable,
+  } satisfies SpellItemView;
+}
+
+/** 세 등급 견본(docs/ai-harness.md 5절): 고쳐요(마지막은 자리를 못 찾음) → 권장해요 → 접힌 그대로 둬도 돼요. */
+const spellItems: SpellItemView[] = [
+  ...S.spellItems.map((item, index) =>
+    spellView(item, `spell-${index}`, 'fix', index !== S.spellItems.length - 1),
+  ),
+  ...S.spellSuggestItems.map((item, index) => spellView(item, `spell-s${index}`, 'suggest')),
+  ...S.spellKeepItems.map((item, index) => spellView(item, `spell-k${index}`, 'keep')),
+];
+
+/** 꼭 고칠 곳이 없는 결과: 권장해요·그대로 둬도 돼요만 */
+const spellNoFixItems: SpellItemView[] = spellItems.filter(item => item.severity !== 'fix');
 
 const directionIdeas: DirectionIdeaView[] = S.directionIdeas.map(idea => ({
   text: idea.text,
@@ -127,7 +145,14 @@ const panels = {
     button: 'SPELL',
     status: 'ready',
     receivedAt: NOW - 3 * MIN,
+    notices: ['personalInfo', 'kindWords'],
     content: { kind: 'SPELL', items: spellItems, activeItemId: 'spell-1' },
+  },
+  spellNoFix: {
+    button: 'SPELL',
+    status: 'ready',
+    receivedAt: NOW - MIN,
+    content: { kind: 'SPELL', items: spellNoFixItems, activeItemId: 'spell-s0' },
   },
   spellEmpty: {
     button: 'SPELL',
@@ -156,6 +181,7 @@ const panels = {
     status: 'ready',
     receivedAt: NOW - 30_000,
     tailOnly: true,
+    notices: ['personalInfo'],
     content: { kind: 'DIRECTION', ideas: directionIdeas },
   },
   polishStream: {
@@ -827,10 +853,15 @@ const SAMPLES: readonly Sample[] = [
   // 결과 패널·시트
   ...(
     [
-      ['panel-spell', 'SPELL ready (active item, 1 unlocated)', panels.spell],
+      [
+        'panel-spell',
+        'SPELL fix / suggest / keep (folded) + notices, active item, 1 unlocated',
+        panels.spell,
+      ],
+      ['panel-spell-no-fix', 'SPELL only suggest + keep (no must-fix), active suggest', panels.spellNoFix],
       ['panel-spell-empty', 'SPELL nothing to fix', panels.spellEmpty],
       ['panel-feedback', 'FEEDBACK all fields, text changed', panels.feedback],
-      ['panel-direction', 'DIRECTION ideas + tail-only notice', panels.direction],
+      ['panel-direction', 'DIRECTION ideas + tail-only + personal-info notices', panels.direction],
       ['panel-polish-stream', 'POLISH streaming', panels.polishStream],
       ['panel-polish-done', 'POLISH done + length warning + truncated + cooldown', panels.polishDone],
       ['panel-loading', 'loading (reading gulbeot)', panels.loading],

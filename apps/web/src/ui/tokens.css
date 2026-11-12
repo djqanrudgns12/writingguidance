@@ -34,6 +34,8 @@
   --line-strong: #958070;
   /* 버터 계열 상태 띠(멈춤): 흰 바탕 4.03:1(--butter는 1.38:1) */
   --butter-ink: #9c7a1e;
+  /* 맞춤법 권장해요 바탕·형광(--butter보다 옅게): --ink 9.33:1, --ink-sub 4.68:1, 점선 --butter-ink 3.51:1 */
+  --butter-soft: #fcefc8;
 
   /* 선과 그림자 (PRD 8.4 "누를 곳이 또렷하게") */
   --stroke-thin: 1px;

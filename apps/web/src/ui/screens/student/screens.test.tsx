@@ -8,7 +8,7 @@ import { HomeView } from './HomeView.tsx';
 import { NicknameView } from './NicknameView.tsx';
 import { ResumeWaitView } from './ResumeWaitView.tsx';
 import { RoomCardView } from './RoomCardView.tsx';
-import type { AiChipView, ResultPanelView } from './write/types.ts';
+import type { AiChipView, ResultPanelView, SpellItemView } from './write/types.ts';
 import { WriteView, type WriteViewProps } from './write/WriteView.tsx';
 
 (globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true;
@@ -354,8 +354,24 @@ describe('S5 쓰기', () => {
       content: {
         kind: 'SPELL',
         items: [
-          { id: 'a', original: 'x', suggestion: 'y', reason: 'r', kind: 'spelling', locatable: true },
-          { id: 'b', original: 'p', suggestion: 'q', reason: 'r', kind: 'spacing', locatable: false },
+          {
+            id: 'a',
+            original: 'x',
+            suggestion: 'y',
+            reason: 'r',
+            kind: 'spelling',
+            severity: 'fix',
+            locatable: true,
+          },
+          {
+            id: 'b',
+            original: 'p',
+            suggestion: 'q',
+            reason: 'r',
+            kind: 'spacing',
+            severity: 'fix',
+            locatable: false,
+          },
         ],
       },
     };
@@ -368,6 +384,140 @@ describe('S5 쓰기', () => {
     );
     click(listButtons[0] as Element);
     expect(onSpellItem).toHaveBeenCalledWith('a');
+  });
+
+  describe('맞춤법 등급(docs/ai-harness.md 5절)', () => {
+    const spell = (
+      id: string,
+      severity: SpellItemView['severity'],
+      patch: Partial<SpellItemView> = {},
+    ): SpellItemView => ({
+      id,
+      original: `o-${id}`,
+      suggestion: `s-${id}`,
+      reason: `r-${id}`,
+      kind: 'spelling',
+      severity,
+      locatable: true,
+      ...patch,
+    });
+    const spellPanel = (items: SpellItemView[], over: Partial<ResultPanelView> = {}): ResultPanelView => ({
+      button: 'SPELL',
+      status: 'ready',
+      receivedAt: NOW,
+      content: { kind: 'SPELL', items },
+      ...over,
+    });
+    const aside = () => host.querySelector('aside[data-result="SPELL"]') as HTMLElement;
+
+    it('고쳐요가 맨 위, 권장해요는 그 아래 표시가 붙고, 그대로 둬도 돼요는 접혀 있다', () => {
+      const onSpellItem = vi.fn();
+      render(
+        <WriteView
+          {...props({
+            panel: spellPanel([
+              spell('k1', 'keep'),
+              spell('s1', 'suggest'),
+              spell('f1', 'fix'),
+              spell('f2', 'fix'),
+            ]),
+            onSpellItem,
+          })}
+        />,
+      );
+      const groups = [...aside().querySelectorAll<HTMLElement>('[data-severity-group]')].map(
+        el => el.dataset['severityGroup'],
+      );
+      expect(groups).toEqual(['fix', 'suggest', 'keep']);
+      const fixItems = [...aside().querySelectorAll('[data-severity-group="fix"] li')];
+      expect(fixItems[0]?.textContent).toContain('o-f1');
+      expect(fixItems[1]?.textContent).toContain('o-f2');
+
+      const suggest = aside().querySelector('[data-severity-group="suggest"] li') as HTMLElement;
+      expect(suggest.textContent).toContain(ko.student.aiSpellSeveritySuggest);
+      expect(aside().textContent).toContain(ko.student.aiSpellSuggestGuide);
+      // 고쳐요에는 보이는 등급 표시가 없다(지금 모양 그대로)
+      expect(aside().querySelector('[data-severity-group="fix"] span[data-severity]')).toBeNull();
+
+      const keep = aside().querySelector('details[data-severity-group="keep"]') as HTMLDetailsElement;
+      expect(keep.open).toBe(false);
+      expect(keep.querySelector('summary')?.textContent).toBe(
+        `${ko.student.aiSpellKeepSummaryPrefix}1${ko.student.aiSpellKeepSummarySuffix}`,
+      );
+      expect(keep.textContent).toContain('o-k1');
+
+      // 권장 항목도 눌러 자리를 볼 수 있다
+      click(suggest.querySelector('button') as Element);
+      expect(onSpellItem).toHaveBeenCalledWith('s1');
+    });
+
+    it('꼭 고칠 것이 없으면(권장·그대로뿐) "꼭 고칠 곳은 없어요"이고, 그대로 둬도 돼요만이면 권장 안내도 없다', () => {
+      render(<WriteView {...props({ panel: spellPanel([spell('s1', 'suggest'), spell('k1', 'keep')]) })} />);
+      expect(aside().querySelector('[data-spell-no-fix]')?.textContent).toBe(ko.student.aiSpellNoFixNeeded);
+      expect(aside().textContent).not.toContain(ko.student.aiSpellEmpty);
+
+      render(<WriteView {...props({ panel: spellPanel([spell('k1', 'keep'), spell('k2', 'keep')]) })} />);
+      expect(aside().querySelector('[data-spell-no-fix]')).not.toBeNull();
+      expect(aside().textContent).not.toContain(ko.student.aiSpellSuggestGuide);
+      expect(aside().querySelector('details summary')?.textContent).toBe(
+        `${ko.student.aiSpellKeepSummaryPrefix}2${ko.student.aiSpellKeepSummarySuffix}`,
+      );
+
+      render(<WriteView {...props({ panel: spellPanel([spell('f1', 'fix'), spell('k1', 'keep')]) })} />);
+      expect(aside().querySelector('[data-spell-no-fix]')).toBeNull();
+    });
+
+    it('근거 이름은 이유 옆에 글자로만(링크 없음), 바꿀 말이 비면 원래 말 없이 이유만', () => {
+      render(
+        <WriteView
+          {...props({
+            panel: spellPanel([
+              spell('f1', 'fix', { ruleLabel: ko.student.aiSpellRuleLabel.HM_35 }),
+              spell('s1', 'suggest', {
+                original: 'bad-word',
+                suggestion: '',
+                reason: ko.student.aiSpellReasonKindWords,
+                ruleLabel: ko.student.aiSpellRuleLabel.KIND,
+              }),
+            ]),
+          })}
+        />,
+      );
+      const [fix, kind] = [...aside().querySelectorAll('li')];
+      expect(fix?.textContent).toContain(ko.student.aiSpellRuleLabel.HM_35);
+      expect(aside().querySelector('a')).toBeNull();
+      expect(kind?.textContent).toContain(ko.student.aiSpellReasonKindWords);
+      expect(kind?.textContent).toContain(ko.student.aiSpellRuleLabel.KIND);
+      expect(kind?.textContent).not.toContain('bad-word');
+      expect(kind?.textContent).not.toContain('→');
+    });
+
+    it('알림: 개인정보·고운 말을 한 줄씩 보인다(맞춤법·한마디·방향)', () => {
+      render(
+        <WriteView
+          {...props({ panel: spellPanel([spell('f1', 'fix')], { notices: ['personalInfo', 'kindWords'] }) })}
+        />,
+      );
+      const lines = [...aside().querySelectorAll<HTMLElement>('[data-notice]')].map(el => el.textContent);
+      expect(lines).toEqual([ko.student.aiNoticePersonalInfo, ko.student.aiNoticeKindWords]);
+
+      render(
+        <WriteView
+          {...props({
+            panel: {
+              button: 'DIRECTION',
+              status: 'ready',
+              receivedAt: NOW,
+              notices: ['personalInfo'],
+              content: { kind: 'DIRECTION', ideas: [{ text: 'idea' }] },
+            },
+          })}
+        />,
+      );
+      expect(host.querySelector('aside[data-result="DIRECTION"] [data-notice]')?.textContent).toBe(
+        ko.student.aiNoticePersonalInfo,
+      );
+    });
   });
 
   it('메모 칸 ref는 질문마다 한 번만 붙고, 다시 그려도 떼었다 붙이지 않는다', () => {

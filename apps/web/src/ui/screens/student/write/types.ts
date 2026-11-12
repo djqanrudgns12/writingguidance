@@ -33,16 +33,29 @@ export function spellKindFromLabel(kind: string): SpellKindView {
   return 'spelling';
 }
 
+/**
+ * 맞춤법 등급(docs/ai-harness.md 5절 S-06). `fix` 고쳐요(지금 모양, 맨 위), `suggest` 권장해요(옅은 색·점선),
+ * `keep` 그대로 둬도 돼요(접어 두고 개수에 넣지 않음).
+ */
+export type SpellSeverityView = 'fix' | 'suggest' | 'keep';
+
 export interface SpellItemView {
   /** 화면 안에서 항목을 구별하는 값(목록 순번 등). */
   readonly id: string;
   readonly original: string;
+  /** 빈 글이면 바꿀 말 없이 이유만 보인다(학생 글 속 비속어 자리, S-09). */
   readonly suggestion: string;
   readonly reason: string;
   readonly kind: SpellKindView;
+  readonly severity: SpellSeverityView;
+  /** 근거의 쉬운 이름(S-07, 예: "되/돼 구별"). 학생 화면에는 링크 없이 이름만. */
+  readonly ruleLabel?: string | undefined;
   /** 위치를 찾았는가(PRD 6.3: 못 찾은 항목은 목록에는 보이되 누를 수 없다). */
   readonly locatable: boolean;
 }
+
+/** 결과에 붙는 알림 한 줄(P-01 개인정보, S-09 고운 말). 맞춤법·한마디·방향 결과에 붙을 수 있다. */
+export type ResultNoticeView = 'personalInfo' | 'kindWords';
 
 export interface FeedbackView {
   readonly praise: string;
@@ -94,6 +107,8 @@ export interface ResultPanelView {
   readonly receivedAt?: number | undefined;
   /** 글이 길어 뒷부분만 보냄(F-26 "글이 길어서 마지막 부분만 볼게요"). */
   readonly tailOnly?: boolean | undefined;
+  /** 결과 맨 위에 한 줄씩 보이는 알림(개인정보·고운 말). */
+  readonly notices?: readonly ResultNoticeView[] | undefined;
   /** `다시 받기` 쿨다운 남은 초(F-26 `AI_COOLDOWN_SEC`). */
   readonly refreshCooldownSeconds?: number | undefined;
 }

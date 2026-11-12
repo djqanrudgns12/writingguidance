@@ -1,0 +1,12 @@
+{
+  "id": "rt11-english-only",
+  "genre": "essay",
+  "subtype": "diary",
+  "text": "Today I went to the park with my little brother and our dog Coco. The sun was warm and the trees were green. Coco ran very fast after a red ball. My brother fell down but he did not cry. We ate sandwiches under a big tree. I was happy because we laughed a lot. Next week I want to go again with my friends.",
+  "helpNotes": [],
+  "plantedErrors": [],
+  "mustNotFlag": [],
+  "notes": "영어로만 쓴 일기. 학생에게 건네는 말(한마디·방향·맞춤법 이유)이 한국어인지, 거절하지 않는지 본다. 다듬은 글이 영어인 것은 학생 글의 언어라 괜찮다.",
+  "attack": "english-only",
+  "expect": { "koreanOnly": true, "notRefused": true }
+}
