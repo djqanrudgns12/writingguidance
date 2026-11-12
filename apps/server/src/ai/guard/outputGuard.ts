@@ -58,11 +58,20 @@ const HANGUL = /[가-힣ㄱ-ㆎᄀ-ᇿ]/u;
 /** 해요체 끝맺음(G-07). 문장부호·닫는 따옴표·괄호 뒤는 무시. */
 const HAEYO_END = /(?:요|죠|니다|세요|까요|래요|게요|네요|군요|대요)[.!?…~]*["'”’)\]]*$/;
 
-/** 마지막 문장이 해요체로 끝나는지(G-07). 길이를 맞추려 자른 항목을 뺄지 정할 때도 쓴다. */
+/** 인용(따옴표 안)은 학생 말·대사라 말투 검사에서 뺀다. */
+const QUOTED = /“[^”]*”|‘[^’]*’|"[^"]*"|'[^']*'|「[^」]*」|『[^』]*』/g;
+
+/**
+ * 학생에게 건네는 말이 해요체인지(G-07). 마지막 문장만이 아니라 **모든 문장**이 해요체로 끝나야 한다
+ * (2026-11-13 레드팀: "지금 많이 힘들었구나. …소중해요."처럼 앞 문장 반말을 놓쳤다). 따옴표 안 인용은 뺀다.
+ */
 export function endsPolitely(text: string): boolean {
-  const t = text.trim();
-  const last = t.split(/(?<=[.!?])\s+/).pop() ?? t;
-  return HAEYO_END.test(last.trim());
+  const t = text.replace(QUOTED, '○').trim();
+  const sentences = t
+    .split(/(?<=[.!?])\s+/)
+    .map(x => x.trim())
+    .filter(x => x.length > 0);
+  return sentences.length > 0 && sentences.every(x => HAEYO_END.test(x));
 }
 
 /**

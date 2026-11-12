@@ -11,6 +11,7 @@ import { errorCatalog, isErrorCode, type ErrorCode } from '@geulbang/core/errors
 import { locateAll, type Located } from '@geulbang/core/text';
 import {
   aiResultSchemas,
+  isAiResultNotice,
   isApiError,
   type AiRequestInput,
   type AiResultNotice,
@@ -170,7 +171,7 @@ export function spellHighlightTone(severity: SpellSeverity): HighlightTone {
 
 /** 결과 안의 알림(개인정보·고운 말). 다듬은 글은 스트림이라 알림이 없다. 저장된 결과를 다시 열 때도 같다. */
 export function aiResultSafetyNotices(record: AiResultRecord): readonly AiResultNotice[] {
-  return record.button === 'POLISH' ? [] : (record.result.notices ?? []);
+  return record.result.notices ?? [];
 }
 
 /** 결과 패널에 붙일 안내 줄(PRD F-26·6.3·PLAN §8.6). 저장된 결과를 다시 열 때도 같은 것을 보인다. */
@@ -439,6 +440,7 @@ export function createAiRequester(deps: AiDeps): AiRequester {
           if (signal.aborted) return;
           revert = noteSent(input.roomId, 'POLISH');
           let stop: 'end' | 'limit' | null = null;
+          let notices: AiResultNotice[] = [];
           for await (const line of deps.api.aiPolish(input.roomId, token, request, signal)) {
             if (signal.aborted) return;
             reached = true;
@@ -451,6 +453,8 @@ export function createAiRequester(deps: AiDeps): AiRequester {
             } else if (line.t === 'done') {
               stop = line.stop;
               break;
+            } else if (line.t === 'notice') {
+              notices = [...new Set(line.notices.filter(isAiResultNotice))];
             } else {
               throw apiErrorOf(isErrorCode(line.code) ? line.code : 'E_AI_PROVIDER');
             }
@@ -462,7 +466,12 @@ export function createAiRequester(deps: AiDeps): AiRequester {
           const record: AiResultRecordOf<'POLISH'> = {
             docId: input.docId,
             button: 'POLISH',
-            result: { text, stop, lengthWarning: polishLengthWarning(prepared.text, text, stop) },
+            result: {
+              text,
+              stop,
+              lengthWarning: polishLengthWarning(prepared.text, text, stop),
+              ...(notices.length > 0 ? { notices } : {}),
+            },
             textHash,
             receivedAt: deps.now(),
             requestText: prepared.text,

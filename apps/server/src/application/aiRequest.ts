@@ -11,6 +11,7 @@ import {
 import type { ApiOutput } from '@geulbang/core/api';
 import { AppError, isErrorCode, type ErrorCode } from '@geulbang/core/errors';
 import type { Hocuspocus } from '@hocuspocus/server';
+import type { DictionaryPort } from '../ai/dictionary.ts';
 import type { AiInput, AiPort, GenreLens, Usage } from '../ai/port.ts';
 import { runPolish, runStructured, structuredBudgetMs, type PolishLine } from '../ai/run.ts';
 import { LIMITS, type SpellResult } from '../ai/schemas.ts';
@@ -28,6 +29,7 @@ import {
   finalizeFeedback,
   finalizeSpell,
   maskForAi,
+  refineSpellWithDictionary,
   unmaskForStudentText,
   userTagOf,
   type Masking,
@@ -58,6 +60,8 @@ export interface AiRequestDeps {
   readonly gate: RoomGate;
   readonly snapshots: Snapshots;
   readonly hocuspocus: () => Hocuspocus<RealtimeContext>;
+  /** 표준국어대사전 조회기(키가 있을 때만, U-25). 없으면 사전 보정을 하지 않는다. */
+  readonly dict?: DictionaryPort | null;
 }
 
 export interface AiStudent {
@@ -195,11 +199,10 @@ export function prepareAiRequest(deps: AiRequestDeps, student: AiStudent, body: 
     .filter(n => n.note.trim().length > 0 && prompts.has(n.questionId))
     .map(n => ({ question: prompts.get(n.questionId) ?? '', note: n.note }));
   const { text: realText, range } = fitInput(body, p.AI_MAX_INPUT_CHARS, p.AI_SPELL_MAX_CHARS);
-  // 보내기 전에 개인정보·학생 글 속 비속어를 가리고 1인칭 위험 신호를 본다(docs/ai-harness.md L0).
+  // 보내기 전에 개인정보·학생 글 속 비속어를 가린다(docs/ai-harness.md L0).
   const masked = maskForAi(realText, helpNotesRaw);
   const text = masked.text;
   const helpNotes = masked.helpNotes;
-  if (masked.masking.care) deps.log.info('ai_care_signal', { detail: body.button });
   const input: AiInput = {
     button: body.button,
     genre: doc.genre,
@@ -213,7 +216,6 @@ export function prepareAiRequest(deps: AiRequestDeps, student: AiStudent, body: 
       : {}),
     range,
     text,
-    ...(masked.masking.care ? { care: true } : {}),
   };
   return {
     kind: 'ready',
@@ -282,12 +284,24 @@ export async function runStructuredRequest(
         usage.push(...part.usage);
         items.push(...part.value.items);
       }
-      result = finalizeSpell(
+      const spell = finalizeSpell(
         items.slice(0, LIMITS.spellItems),
         ticket.realText,
         ticket.input.genre,
         ticket.masking,
       );
+      // 사전 보정(U-25): 비표준어로 확인된 말은 고쳐요. 조회는 맞춤법 시간 예산 안에서만, 실패하면 그대로.
+      result = deps.dict
+        ? {
+            ...spell,
+            items: await refineSpellWithDictionary(
+              spell.items,
+              deps.dict,
+              config.product.DICT_MAX_PER_REQUEST,
+              spellDeps.signal,
+            ),
+          }
+        : spell;
     } else if (ticket.button === 'FEEDBACK') {
       const reply = await runStructured(runDeps, { ...ticket.input, button: 'FEEDBACK' });
       usage.push(...reply.usage);
@@ -351,6 +365,8 @@ export async function* runPolishRequest(
       { ...ticket.input, button: 'POLISH' },
       u => usage.push(u),
     );
+    // 학생 글에 개인정보·쓰면 안 되는 표현이 있었으면 글보다 먼저 알린다(U-26).
+    if (ticket.masking.notices.length > 0) yield { t: 'notice', notices: [...ticket.masking.notices] };
     for await (const raw of lines) {
       // 자리표시자를 되돌린다(개인정보는 학생 자신의 글이라 원래 값, 가린 비속어는 ○○, PO-06).
       const line = raw.t === 'text' ? { ...raw, d: unmaskForStudentText(raw.d, ticket.masking) } : raw;

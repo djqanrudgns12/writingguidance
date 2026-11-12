@@ -47,7 +47,7 @@ export const SPELL_RULES = {
   PUNCT: { source: '문장 부호(2015)', url: BUHO },
   DICT: { source: '표준국어대사전', url: SAJEON },
   WEN: { source: '표준국어대사전(웬·왠지)', url: SAJEON },
-  KIND: { source: '고운 말', url: SAJEON },
+  KIND: { source: '쓰면 안 되는 표현(사용자 결정 U-26)', url: SAJEON },
 } as const;
 export type SpellRuleId = keyof typeof SPELL_RULES;
 /** 모델이 고를 수 있는 값(`KIND`는 서버만 붙인다). */

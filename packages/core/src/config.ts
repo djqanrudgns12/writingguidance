@@ -106,6 +106,14 @@ export const configDefaults = {
    * 답이 잘린다(2026-11-12 생각 깊이 평가). 끔·낮음은 0이라 기존 동작 그대로.
    */
   AI_THINKING_HEADROOM_TOKENS: { off: 0, low: 0, medium: 2000, high: 6000 },
+  /**
+   * 표준국어대사전 Open API로 맞춤법 등급 보정(docs/ai-harness.md 5절, U-25). 키(`STDICT_API_KEY`)가 있을 때만 쓴다.
+   * 한 번 조회 제한 시간, 하루 조회 상한(서버 전체), 요청 한 번에 조회할 낱말 수, 기억해 둘 낱말 수.
+   */
+  DICT_TIMEOUT_MS: 1500,
+  DICT_LOOKUPS_PER_DAY: 20000,
+  DICT_MAX_PER_REQUEST: 12,
+  DICT_CACHE_SIZE: 5000,
 
   // AI 제공사·모델·생각 깊이 (PRD 6.4.1)
   AI_PROVIDER: 'anthropic',
@@ -223,6 +231,10 @@ export const configSchema = z
       .object({ spell: positive, feedback: positive, direction: positive, polishMax: positive })
       .strict(),
     AI_THINKING_HEADROOM_TOKENS: z.object({ off: count, low: count, medium: count, high: count }).strict(),
+    DICT_TIMEOUT_MS: positive,
+    DICT_LOOKUPS_PER_DAY: count,
+    DICT_MAX_PER_REQUEST: count,
+    DICT_CACHE_SIZE: count,
 
     // 'fake'는 시험용이다. 운영에서 쓰면 서버가 시작을 거부한다(apps/server/src/config.ts).
     AI_PROVIDER: z.enum(['anthropic', 'fake']),

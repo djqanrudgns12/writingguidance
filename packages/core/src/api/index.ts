@@ -186,5 +186,7 @@ export const polishLineSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('reset') }).strict(),
   z.object({ t: z.literal('done'), stop: z.enum(['end', 'limit']) }).strict(),
   z.object({ t: z.literal('error'), code: z.string() }).strict(),
+  // 학생 글에 개인정보·쓰면 안 되는 표현이 있었다는 알림(docs/ai-harness.md P-01·S-09, U-26). 옛 기기는 모르는 줄을 버린다.
+  z.object({ t: z.literal('notice'), notices: z.array(z.string()).max(4) }).strict(),
 ]);
 export type PolishLine = z.output<typeof polishLineSchema>;

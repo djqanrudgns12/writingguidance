@@ -62,6 +62,11 @@ const secretsSchema = z.object({
   PIN_ENC_KEY: base64Key(32).optional(),
   ID_HMAC_KEY: base64Key(32).optional(),
   PERSONAL_HMAC_KEY: base64Key(32).optional(),
+  // 표준국어대사전 Open API 인증 키(16진수 32자리, U-25). 없으면 사전 보정을 하지 않는다.
+  STDICT_API_KEY: z
+    .string()
+    .regex(/^[0-9A-Fa-f]{32}$/, { message: '16진수 32자리' })
+    .optional(),
 });
 
 export interface Secrets {
@@ -71,6 +76,7 @@ export interface Secrets {
   readonly pinEncKey: Buffer;
   readonly idHmacKey: Buffer;
   readonly personalHmacKey: Buffer;
+  readonly stdictApiKey: string | undefined;
 }
 
 export interface ServerConfig {
@@ -158,6 +164,7 @@ export function loadServerConfig(env: Readonly<Record<string, string | undefined
       pinEncKey: keyOrRandom('PIN_ENC_KEY', raw.PIN_ENC_KEY),
       idHmacKey: keyOrRandom('ID_HMAC_KEY', raw.ID_HMAC_KEY),
       personalHmacKey: keyOrRandom('PERSONAL_HMAC_KEY', raw.PERSONAL_HMAC_KEY),
+      stdictApiKey: raw.STDICT_API_KEY,
     },
     generatedSecrets: generated,
   };

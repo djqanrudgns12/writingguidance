@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { ko } from '@geulbang/core/copy';
-import { maskStudentProfanity, scanText } from '../ai/guard/lexicon.ts';
+import type { DictionaryPort } from '../ai/dictionary.ts';
+import { maskStudentProfanity } from '../ai/guard/lexicon.ts';
 import { maskPii, namePii, restorePii, type PiiSpan } from '../ai/guard/pii.ts';
 import {
   gradeContext,
@@ -24,11 +25,9 @@ export type AiNotice = 'PII_IN_TEXT' | 'PROFANITY_IN_TEXT';
 
 export interface Masking {
   readonly pii: readonly PiiSpan[];
-  /** `risky`: 자해·위험 제조 표현(고운 말 권장 대상이 아님) */
-  readonly words: readonly { readonly token: string; readonly value: string; readonly risky: boolean }[];
+  /** 학생 글 속 쓰면 안 되는 표현(비속어·혐오·성적 표현·자해 방법·위험 제조)을 가린 대응 */
+  readonly words: readonly { readonly token: string; readonly value: string }[];
   readonly notices: readonly AiNotice[];
-  /** 1인칭 위험 신호(R-01). 무엇이 걸렸는지는 남기지 않는다. */
-  readonly care: boolean;
 }
 
 export interface MaskedInput {
@@ -40,17 +39,10 @@ export interface MaskedInput {
 function maskOne(text: string) {
   const p = maskPii(text);
   const w = maskStudentProfanity(p.text);
-  const hits = scanText(p.text);
-  const risky = (start: number, end: number) =>
-    hits.some(h => h.start < end && h.end > start && (h.category === 'selfharm' || h.category === 'danger'));
   return {
     text: w.masked,
     pii: p.spans,
-    words: w.spans.map(s => ({
-      token: s.token,
-      value: p.text.slice(s.start, s.end),
-      risky: risky(s.start, s.end),
-    })),
+    words: w.spans.map(s => ({ token: s.token, value: p.text.slice(s.start, s.end) })),
   };
 }
 
@@ -63,11 +55,10 @@ export function maskForAi(
 ): MaskedInput {
   const main = maskOne(neutralize(text));
   const notes = helpNotes.map(n => ({ question: n.question, note: maskOne(neutralize(n.note)).text }));
-  const care = scanText(text).some(h => h.category === 'risk_signal');
   const notices: AiNotice[] = [];
   if (main.pii.length > 0) notices.push('PII_IN_TEXT');
-  if (main.words.some(w => !w.risky)) notices.push('PROFANITY_IN_TEXT');
-  return { text: main.text, helpNotes: notes, masking: { pii: main.pii, words: main.words, notices, care } };
+  if (main.words.length > 0) notices.push('PROFANITY_IN_TEXT');
+  return { text: main.text, helpNotes: notes, masking: { pii: main.pii, words: main.words, notices } };
 }
 
 /** 남용 탐지용 불투명 ID(M-04): 참여자 ID의 해시 앞 32자. 참여자 ID 자체도 임의 UUID라 사람을 알 수 없다. */
@@ -138,8 +129,6 @@ export function finalizeSpell(
     });
   }
   for (const w of m.words) {
-    // 위험 표현(자해 방법·위험 제조)은 "고운 말"로 다룰 일이 아니라 가리기만 한다.
-    if (w.risky) continue;
     const at = findFree(realText, w.value, '', taken);
     if (at < 0) continue;
     taken.push({ start: at, end: at + w.value.length });
@@ -147,13 +136,14 @@ export function finalizeSpell(
       at,
       original: w.value,
       suggestion: '',
+      // 사용자 결정 U-26: 학생 글 속 비속어·위험 표현은 "쓰면 안 되는 표현"이라고 분명히 알린다(고쳐요 등급).
       reason: ko.student.aiSpellReasonKindWords,
       kind: '맞춤법',
       context: {
         before: [...realText.slice(0, at)].slice(-CONTEXT).join(''),
         after: [...realText.slice(at + w.value.length)].slice(0, CONTEXT).join(''),
       },
-      severity: 'suggest',
+      severity: 'fix',
       rule: ruleOf('KIND'),
     });
   }
@@ -163,16 +153,9 @@ export function finalizeSpell(
   return { items: items2, ...(m.notices.length > 0 ? { notices: [...m.notices] } : {}) };
 }
 
-/** 돌봄 문장이 이미 있는지(모델이 지시를 따랐는지) */
-const CARE_WORDS = /선생님|보호자|어른/;
-
 export function finalizeFeedback(r: FeedbackResult, m: Masking): FeedbackResult & { notices?: AiNotice[] } {
   const s = (t: string) => unmaskForSpeech(t, m);
-  let improve = r.improve.map(s);
-  // 1인칭 위험 신호가 있으면 돌봄 문장을 모델에만 맡기지 않고 서버가 보장한다(R-01). 마지막 고칠 점 자리에 넣는다.
-  if (m.care && !improve.some(t => CARE_WORDS.test(t))) {
-    improve = [...improve.slice(0, Math.max(0, improve.length - 1)), ko.student.aiCareLine];
-  }
+  const improve = r.improve.map(s);
   return {
     praise: s(r.praise),
     improve,
@@ -191,4 +174,81 @@ export function finalizeDirection(
     ideas: r.ideas.map(i => ({ ...i, text: unmaskForSpeech(i.text, m) })),
     ...(m.notices.length > 0 ? { notices: [...m.notices] } : {}),
   };
+}
+
+/** 낱말 끝에 붙은 조사·서술격 조사 꼴(사전 표제어로 다시 찾을 때 뗀다). 긴 것부터. */
+const TRAILING = [
+  '이에요',
+  '이었다',
+  '에서',
+  '에게',
+  '한테',
+  '까지',
+  '부터',
+  '처럼',
+  '보다',
+  '이랑',
+  '으로',
+  '이야',
+  '이다',
+  '예요',
+  '은',
+  '는',
+  '이',
+  '가',
+  '을',
+  '를',
+  '에',
+  '도',
+  '만',
+  '와',
+  '과',
+  '로',
+  '의',
+  '랑',
+  '야',
+];
+
+function headwordCandidates(original: string): string[] {
+  const w = original.trim();
+  const out = [w];
+  for (const t of TRAILING) {
+    if (w.length > t.length + 1 && w.endsWith(t)) {
+      out.push(w.slice(0, -t.length));
+      break;
+    }
+  }
+  return out;
+}
+
+/**
+ * 사전 보정(U-25): 표준국어대사전이 비표준어("→ 표준어")라고 확인해 준 말은 대사 안이어도 표기 실수라 고쳐요로 확정한다.
+ * 사전에 없거나 표준어로 실린 말은 바꾸지 않는다(문맥상 잘못 쓴 표준어·말투일 수 있어서). 조회가 실패하면 그대로 둔다.
+ * 고쳐요가 아닌 맞춤법 항목만, 요청당 `DICT_MAX_PER_REQUEST`개까지 본다.
+ */
+export async function refineSpellWithDictionary(
+  items: readonly SpellOutItem[],
+  dict: DictionaryPort,
+  maxLookups: number,
+  signal: AbortSignal,
+): Promise<SpellOutItem[]> {
+  let budget = maxLookups;
+  const checked = await Promise.all(
+    items.map(async item => {
+      if (item.kind !== '맞춤법' || item.severity === 'fix' || item.rule.id === 'KIND') return item;
+      for (const word of headwordCandidates(item.original)) {
+        if (budget <= 0 || signal.aborted) return item;
+        budget -= 1;
+        const v = await dict.lookup(word, signal);
+        if (v.kind === 'nonstandard') return { ...item, severity: 'fix' as const, rule: ruleOf('DICT') };
+        if (v.kind !== 'absent') return item;
+      }
+      return item;
+    }),
+  );
+  const rank: Readonly<Record<SpellSeverity, number>> = { fix: 0, suggest: 1, keep: 2 };
+  return checked
+    .map((item, i) => ({ item, i }))
+    .sort((a, b) => rank[a.item.severity] - rank[b.item.severity] || a.i - b.i)
+    .map(x => x.item);
 }

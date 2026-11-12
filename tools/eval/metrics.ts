@@ -79,7 +79,8 @@ export const maskingRecordSchema = z
   .object({
     pii: z.number().int().nonnegative(),
     words: z.number().int().nonnegative(),
-    care: z.boolean(),
+    // 옛 기록에만 있다(위험 신호 처리는 U-24로 뺌)
+    care: z.boolean().optional(),
     notices: z.array(z.string()),
   })
   .strict();

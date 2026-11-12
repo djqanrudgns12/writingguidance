@@ -1,3 +1,4 @@
+import { createStdictDictionary, type DictionaryPort } from '../../ai/dictionary.ts';
 import { createApiSchemas } from '@geulbang/core/api';
 import type { Hono } from 'hono';
 import { z } from 'zod';
@@ -29,6 +30,8 @@ export interface AiRouteDeps {
   readonly now: () => number;
   readonly services: RealtimeServices;
   readonly ai: AiPort | null;
+  /** 시험에서 사전 조회기를 바꿔 끼울 때. 없으면 키(`STDICT_API_KEY`)가 있을 때 표준국어대사전 조회기를 만든다. */
+  readonly dict?: DictionaryPort | null;
 }
 
 const uuid = z.uuid();
@@ -44,6 +47,17 @@ export function mountAiRoutes(app: Hono<AppEnv>, deps: AiRouteDeps): void {
     gate: deps.services.gate,
     snapshots: deps.services.snapshots,
     hocuspocus: deps.services.hocuspocus,
+    dict:
+      deps.dict !== undefined
+        ? deps.dict
+        : deps.config.secrets.stdictApiKey
+          ? createStdictDictionary({
+              key: deps.config.secrets.stdictApiKey,
+              config: deps.config.product,
+              now: deps.now,
+              onError: code => deps.log.warn('dict_lookup_failed', { code }),
+            })
+          : null,
   };
 
   app.post('/api/rooms/:roomId/ai', async c => {

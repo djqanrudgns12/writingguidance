@@ -198,12 +198,10 @@ export async function runSingleEvaluation(options: {
     ...base,
     text: masked.text,
     helpNotes: masked.helpNotes,
-    ...(masking.care ? { care: true } : {}),
   };
   const maskingMeta = {
     pii: masking.pii.length,
     words: masking.words.length,
-    care: masking.care,
     notices: [...masking.notices],
   };
 

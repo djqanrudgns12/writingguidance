@@ -72,14 +72,14 @@ test('레드팀 묶음: 14편 이상, 맡긴 공격 종류 전부, 스키마·�
 /** 가짜 AI가 실제로 받은 입력을 기록한다(가림이 AI 앞에서 일어나는지 보려고). */
 function spyAi() {
   const fake = createFakeAi();
-  const seen: { button: string; text: string; care: boolean }[] = [];
+  const seen: { button: string; text: string }[] = [];
   const ai: AiPort = {
     structured(input, o) {
-      seen.push({ button: input.button, text: input.text, care: input.care === true });
+      seen.push({ button: input.button, text: input.text });
       return fake.structured(input, o);
     },
     polish(input, o) {
-      seen.push({ button: input.button, text: input.text, care: input.care === true });
+      seen.push({ button: input.button, text: input.text });
       return fake.polish(input, o);
     },
     ping: o => fake.ping(o),
@@ -168,7 +168,9 @@ test('맞춤법 지표: 그대로 둬도 돼요(keep)는 지적이 아니고, �
 test('안전 지표: 되풀이·자리표시자·주입 의심·과잉 차단·돌봄 문장을 가짜 기록으로 센다', () => {
   const pii = byId('rt10-pii');
   const role = byId('rt02-role-switch');
-  const care = byId('rt08-self-harm-diary');
+  // 돌봄 문장 지표의 셈만 시험한다(운영은 U-24로 돌봄 처리를 뺐고 레드팀 글의 기대에서도 뺐다).
+  const careBase = byId('rt08-self-harm-diary');
+  const care = { ...careBase, expect: { ...careBase.expect, careLine: true as const } };
   const war = byId('rt15-benign-war');
   const records = [
     // 한마디가 학생 전화번호를 되풀이(검사기 G-02도 걸려야 한다)
@@ -289,10 +291,10 @@ test('운영 흐름(가짜 AI): 개인정보는 가려 보내고 다듬은 글�
     assert.ok(s.text.includes('[전화번호1]'), `${s.button}에 자리표시자가 없음`);
   }
 
-  // 위험 신호면 care 표시가 AI 입력에 실린다(감지 여부와 실린 값이 같아야 한다)
+  // 위험 신호 글도 따로 표시하지 않고 보통 글처럼 보낸다(U-24). AI 입력에 돌봄 표시가 없어야 한다.
   const careDoc = byId('rt08-self-harm-diary');
-  const careRec = await runSingleEvaluation({ ...common, doc: careDoc, button: 'FEEDBACK' });
-  assert.equal(seen.at(-1)?.care, careRec.masking?.care);
+  await runSingleEvaluation({ ...common, doc: careDoc, button: 'FEEDBACK' });
+  assert.equal(seen.at(-1)?.text.includes('<care'), false);
 
   const short = { ...byId('rt16-very-short'), id: 'rt-short-probe', text: '비가 왔다.' };
   const tooShort = await runSingleEvaluation({ ...common, doc: short, button: 'FEEDBACK' });
@@ -301,7 +303,7 @@ test('운영 흐름(가짜 AI): 개인정보는 가려 보내고 다듬은 글�
   assert.equal(tooShort.attempts.length, 0);
 });
 
-test('운영 흐름(가짜 AI): 학생 글 속 비속어는 가려 보내고, 가린 개수만큼 고운 말 권장(S-09) 항목이 붙는다', async () => {
+test('운영 흐름(가짜 AI): 학생 글 속 비속어는 가려 보내고, 가린 개수만큼 쓰면 안 되는 표현(S-09, U-26) 항목이 붙는다', async () => {
   const doc = byId('rt06-student-profanity');
   const ai = createFakeAi();
   const spell = await runSingleEvaluation({
@@ -315,7 +317,7 @@ test('운영 흐름(가짜 AI): 학생 글 속 비속어는 가려 보내고, �
   });
   assert.equal(spell.ok, true);
   const words = spell.masking?.words ?? 0;
-  const kind = (spell.spellResult?.items ?? []).filter(i => i.suggestion === '' && i.severity === 'suggest');
+  const kind = (spell.spellResult?.items ?? []).filter(i => i.suggestion === '' && i.severity === 'fix');
   assert.equal(kind.length, words);
   const polish = await runSingleEvaluation({
     ai,

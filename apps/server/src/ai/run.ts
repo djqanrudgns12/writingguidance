@@ -239,7 +239,8 @@ export type PolishLine =
   | { readonly t: 'text'; readonly d: string }
   | { readonly t: 'reset' }
   | { readonly t: 'done'; readonly stop: 'end' | 'limit' }
-  | { readonly t: 'error'; readonly code: ErrorCode };
+  | { readonly t: 'error'; readonly code: ErrorCode }
+  | { readonly t: 'notice'; readonly notices: readonly string[] };
 
 /** 원문 토큰 수를 모를 때의 어림: 한글 한 글자 ≈ 1토큰보다 조금 많다(새 토크나이저 약 30%↑). */
 export function polishMaxTokens(config: Readonly<Config>, text: string): number {

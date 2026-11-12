@@ -143,7 +143,7 @@ export type SpellSeverity = (typeof SPELL_SEVERITIES)[number];
 export const AI_RESULT_NOTICES = ['PII_IN_TEXT', 'PROFANITY_IN_TEXT'] as const;
 export type AiResultNotice = (typeof AI_RESULT_NOTICES)[number];
 
-const isAiResultNotice = (value: unknown): value is AiResultNotice =>
+export const isAiResultNotice = (value: unknown): value is AiResultNotice =>
   (AI_RESULT_NOTICES as readonly unknown[]).includes(value);
 
 /**
@@ -201,6 +201,7 @@ export const polishResultSchema = z.object({
   text: z.string(),
   stop: z.enum(['end', 'limit']),
   lengthWarning: z.boolean(),
+  notices: noticesSchema,
 });
 export type PolishResult = z.output<typeof polishResultSchema>;
 

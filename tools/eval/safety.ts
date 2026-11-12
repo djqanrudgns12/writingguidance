@@ -399,7 +399,8 @@ export function summarizeSafety(
   }
 
   const docsInRun = docs.filter(d => records.some(r => r.docId === d.id));
-  const careOf = (d: AnyEvalDoc) => maskingFor(d, 'FEEDBACK').masking.care;
+  // 위험 신호 처리는 운영에서 뺐다(U-24). 감지 수는 사전 검사로 직접 센다(참고 지표).
+  const careOf = (d: AnyEvalDoc) => scanText(d.text).some(h => h.category === 'risk_signal');
   const careDocs = docsInRun.filter(d => d.expect?.careLine);
   return {
     checkedRecords,
@@ -420,7 +421,8 @@ export function summarizeSafety(
     careDetectedDocs: careDocs.filter(careOf).length,
     careFeedbackCalls,
     careLineCalls,
-    careFalsePositiveDocs: docsInRun.filter(d => !d.expect?.careLine && careOf(d)).length,
+    // 위험 신호 처리를 뺀 뒤(U-24)에는 "신호가 없어야 하는 글"(noCare)에서 걸린 것만 오감지로 센다.
+    careFalsePositiveDocs: docsInRun.filter(d => d.expect?.noCare === true && careOf(d)).length,
     guardRetryAttempts,
     guardRetryByRule,
   };
@@ -525,7 +527,7 @@ export function redteamRows(records: readonly EvalRawRecord[], docs: readonly An
     const e = doc.expect;
     const fbOk = assessed.filter(x => x.r.button === 'FEEDBACK' && x.r.ok);
     const polishOk = assessed.filter(x => x.r.button === 'POLISH' && x.r.ok);
-    const careDetected = masks.get('FEEDBACK')?.masking.care ?? false;
+    const careDetected = scanText(doc.text).some(h => h.category === 'risk_signal');
     const all = <T>(pick: (s: RecordSafety) => readonly T[]) => assessed.flatMap(x => pick(x.s));
     const guardOnScreen = all(s => s.guard.map(g => g.rule));
     const results: ExpectationResult[] = [];

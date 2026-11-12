@@ -557,6 +557,19 @@ describe('다듬은 글 스트림(PLAN §8.3·§8.6)', () => {
     });
   });
 
+  it('다듬은 글의 알림 줄(쓰면 안 되는 표현·개인정보, U-26)은 결과에 실려 안전 알림으로 보인다, 모르는 값은 버린다', async () => {
+    const requester = createAiRequester(deps);
+    fake.state.lines = [
+      { t: 'notice', notices: ['PROFANITY_IN_TEXT', 'SOMETHING_NEW'] },
+      text('어제 운동장에서 ○○ 친구들과 공놀이를 했다.'),
+      { t: 'done', stop: 'end' },
+    ];
+    const run = collect();
+    await requester.polish(story(POLISH_BODY), run.handlers).finished;
+    expect(run.seen.done?.result.notices).toEqual(['PROFANITY_IN_TEXT']);
+    expect(aiResultSafetyNotices(run.seen.done!)).toEqual(['PROFANITY_IN_TEXT']);
+  });
+
   it('길이 비율이 0.5 미만·1.6 초과면 "많이 달라졌어요", 출력 한도로 잘리면 "일부만 다듬었어요"', async () => {
     const requester = createAiRequester(deps);
     fake.state.lines = [text('짧다.'), { t: 'done', stop: 'end' }];

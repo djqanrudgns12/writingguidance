@@ -227,12 +227,12 @@ export const ko = {
     aiSpellKeepGuide: '이야기 속 말투나 시의 표현처럼 일부러 쓴 것 같아요. 그대로 둬도 돼요.',
     // 결과 알림(P-01·S-09): 꾸짖지 않고 한 줄로 권한다.
     aiNoticePersonalInfo: '전화번호, 주소 같은 개인정보는 글에 쓰지 않는 게 좋아요.',
-    aiNoticeKindWords: '고운 말로 바꿔 보면 어때요? 읽는 친구 마음이 더 편해져요.',
+    aiNoticeKindWords: '글에 쓰면 안 되는 표현이 있어요. 고운 말로 바꿔 써요.',
     // 서버가 학생 문구를 만들 때 쓴다: 모델 이유가 규칙을 어기면 바꿔 넣는 이유(S-05), 비속어 자리 권장 항목(S-09).
     aiSpellReasonSpelling: '국어사전에 맞게 고쳐 보면 좋아요.',
     aiSpellReasonSpacing: '띄어쓰기를 고쳐 보면 좋아요.',
     aiSpellReasonPunctuation: '문장 부호를 고쳐 보면 좋아요.',
-    aiSpellReasonKindWords: '고운 말로 바꿔 보면 어때요?',
+    aiSpellReasonKindWords: '쓰면 안 되는 표현이에요. 고운 말로 바꿔 써요.',
     /** 맞춤법 근거의 학생용 쉬운 이름(S-07, 서버 `spellRules.ts`의 `ruleId` → `rule.label`). */
     aiSpellRuleLabel: {
       HM_35: '되/돼 구별',
@@ -253,7 +253,7 @@ export const ko = {
       PUNCT: '문장 부호',
       DICT: '국어사전 표기',
       WEN: '웬/왠 구별',
-      KIND: '고운 말',
+      KIND: '쓰면 안 되는 말',
     },
     /** 개인정보 자리표시를 한마디·방향 글 안에서 바꿀 종류 이름(P-01). */
     aiPiiKind: {
@@ -264,8 +264,6 @@ export const ko = {
     },
     /** 비속어를 가린 자리(다듬은 글, 4절) */
     aiMaskedWord: '○○',
-    /** 1인칭 위험 신호가 있을 때 한마디에 서버가 꼭 넣는 한 줄(docs/ai-harness.md R-01, U-24) */
-    aiCareLine: '힘든 마음이 들면 선생님이나 보호자에게 이야기해 봐요.',
     aiFeedbackPraiseHeading: '잘한 점',
     aiFeedbackImproveHeading: '다듬을 점',
     aiFeedbackFactCheckHeading: '확인해 볼 사실',

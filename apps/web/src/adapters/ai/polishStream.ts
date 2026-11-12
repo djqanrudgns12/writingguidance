@@ -53,7 +53,7 @@ export function foldPolish(lines: readonly PolishLine[]): {
     if (l.t === 'text') text += l.d;
     else if (l.t === 'reset') text = '';
     else if (l.t === 'done') stop = l.stop;
-    else error = l.code;
+    else if (l.t === 'error') error = l.code;
   }
   return { text, stop, error };
 }

@@ -26,11 +26,6 @@ export interface AiInput {
   readonly song?: { readonly mood: string; readonly tempo: string };
   readonly range: 'ALL' | 'TAIL';
   readonly text: string;
-  /**
-   * 1인칭 위험 신호(docs/ai-harness.md L0 R-01)가 글에 있음. 한마디가 고칠 점보다 마음을 먼저 알아주게 한다.
-   * 무엇이 걸렸는지는 보내지 않는다.
-   */
-  readonly care?: boolean;
 }
 
 export interface Usage {

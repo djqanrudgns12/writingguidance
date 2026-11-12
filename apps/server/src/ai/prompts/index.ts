@@ -48,7 +48,6 @@ export const TASKS: Readonly<Record<AiButton, string>> = {
     '- <help_notes>에 시대가 적혀 있고 그 시대에 없던 물건이나 말이 보일 때만, 고치라고 요구하지 말고 "~은 이 시대엔 없던 것일 수 있어요"처럼 가볍게 알려 주는 한 줄을 eraNote에 한 번 쓴다.',
     '- <fact_mode>가 question이면 확인해 볼 사실 하나를 단정하지 않는 질문으로 factCheck에 쓴다.',
     '- 부드럽게 바꿔 보자고 권할 표현이 있으면 softenNote에 한 줄로 쓴다. 없으면 쓰지 않는다.',
-    '- <care/>가 있으면 글에 힘든 마음이 보인다는 뜻이다. praise는 마음을 알아주는 따뜻한 말로 쓰고, improve 하나는 "힘든 마음이 들면 선생님이나 보호자에게 이야기해 봐요."로 쓴다. 고칠 점은 하나만 가볍게.',
   ].join('\n'),
   DIRECTION: [
     '할 일: 다음에 쓸 방향을 2~3개 쓴다. 각 60자 이내의 한 문장, 서로 겹치지 않게.',
@@ -84,8 +83,7 @@ const escapeAttr = (s: string) => escapeXml(s).replace(/"/g, '&quot;');
  * 학생 글 안에서 우리 태그를 흉내 낸 부분만 바꾼다(`<text>` 밖으로 나오는 것을 막으려고).
  * 나머지 글자는 그대로 둔다: 맞춤법 `original`이 글과 한 글자도 다르지 않아야 위치를 찾을 수 있다.
  */
-const TAG_LIKE =
-  /<(\/?)(request|text|lens|help_notes|note|genre|subtype|purpose|range|fact_mode|song|care)\b/gi;
+const TAG_LIKE = /<(\/?)(request|text|lens|help_notes|note|genre|subtype|purpose|range|fact_mode|song)\b/gi;
 export const guardText = (s: string) => s.replace(TAG_LIKE, '‹$1$2');
 
 /** user 메시지(PLAN §8.4 꼴). */
@@ -115,7 +113,6 @@ export function userPrompt(input: AiInput): string {
       ? [`  <song mood="${escapeAttr(input.song.mood)}" tempo="${escapeAttr(input.song.tempo)}"/>`]
       : []),
     `  <range>${input.range}</range>`,
-    ...(input.care && input.button === 'FEEDBACK' ? ['  <care/>'] : []),
     '  <text>',
     guardText(input.text),
     '  </text>',

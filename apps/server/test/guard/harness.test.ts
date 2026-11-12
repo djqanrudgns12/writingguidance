@@ -143,9 +143,10 @@ describe('가림과 마무리(L0·S-09·PO-06)', () => {
     expect(m.masking.notices).toEqual(['PII_IN_TEXT', 'PROFANITY_IN_TEXT']);
     expect(unmaskForStudentText(m.text, m.masking)).toBe('우리 집 010-1234-5678. 동생이 ○○이라고 했다.');
   });
-  it('1인칭 위험 신호를 본다(R-01)', () => {
-    expect(maskForAi('요즘 너무 힘들어서 죽고 싶다는 생각이 들어.', []).masking.care).toBe(true);
-    expect(maskForAi('전쟁터에서 할아버지가 돌아가셨다.', []).masking.care).toBe(false);
+  it('위험 신호 글도 따로 표시하지 않는다(U-24)', () => {
+    const m = maskForAi('요즘 너무 힘들어서 죽고 싶다는 생각이 들어.', []);
+    expect(m.text).not.toContain('<care');
+    expect(Object.keys(m.masking)).not.toContain('care');
   });
   it('맞춤법 마무리: 등급 순서, 비속어 자리에 권장 항목, 앞뒤 글자는 원문에서', () => {
     const real = `"진짜루 갈께!" 동생이 ${BAD}이라고 했다. 몇일 뒤에 왔다.`;
@@ -174,8 +175,9 @@ describe('가림과 마무리(L0·S-09·PO-06)', () => {
       'story',
       m.masking,
     );
-    expect(out.items.map(i => i.severity)).toEqual(['fix', 'suggest', 'keep']);
-    expect(out.items[0]?.original).toBe('몇일');
+    // 학생 글 속 비속어는 "쓰면 안 되는 표현"으로 고쳐요(U-26). 등급 순서, 같은 등급은 글 속 위치 순.
+    expect(out.items.map(i => i.severity)).toEqual(['fix', 'fix', 'keep']);
+    expect(out.items.find(i => i.original === '몇일')?.severity).toBe('fix');
     expect(out.items[0]?.rule.url).toContain('korean.go.kr');
     const kind = out.items.find(i => i.rule.id === 'KIND');
     expect(kind?.original).toBe(BAD);
@@ -272,20 +274,14 @@ describe('레드팀 평가에서 찾은 결함(2026-11-13)', () => {
     const r = cleanFeedback({ praise: '처음이 생생해요.', improve: ['한 문장 더 써 볼까요?', long] });
     expect(r.improve).toEqual(['한 문장 더 써 볼까요?']);
   });
-  it('위험 신호가 있으면 돌봄 문장을 서버가 보장한다', () => {
-    const m = maskForAi('요즘 너무 힘들어서 죽고 싶다는 생각이 들어.', []);
-    const r = finalizeFeedback(
-      { praise: '솔직하게 마음을 써 주었어요.', improve: ['마음을 더 써 볼까요?'] },
-      m.masking,
-    );
-    expect(r.improve.at(-1)).toBe('힘든 마음이 들면 선생님이나 보호자에게 이야기해 봐요.');
-  });
-  it('위험 제조 표현은 가리기만 하고 "고운 말" 항목을 붙이지 않는다', () => {
+  it('위험 제조 표현도 가리고 "쓰면 안 되는 표현"으로 알린다(U-26)', () => {
     const real = '주인공이 폭탄 만드는 방법을 찾았다.';
     const m = maskForAi(real, []);
     const out = finalizeSpell([], real, 'story', m.masking);
-    expect(out.items.some(i => i.rule.id === 'KIND')).toBe(false);
-    expect(out.notices ?? []).not.toContain('PROFANITY_IN_TEXT');
+    const forbidden = out.items.find(i => i.rule.id === 'KIND');
+    expect(forbidden?.severity).toBe('fix');
+    expect(forbidden?.reason).toBe('쓰면 안 되는 표현이에요. 고운 말로 바꿔 써요.');
+    expect(out.notices).toContain('PROFANITY_IN_TEXT');
   });
 });
 
@@ -294,5 +290,13 @@ describe('자리표시자(G-10)', () => {
     expect(plain('우리 집은 [주소2]에 있다.', '우리 집은 은하수로 123에 있다. [주소1] 놀러 와.')).toBe('G10');
     expect(plain('메일은 [이메일1]로 보내.', '메일은 [이메일1]로 보내')).toBeNull();
     expect(speech('[이름]에게 물어볼까요?')).toBe('G10');
+  });
+});
+
+describe('해요체는 모든 문장(G-07, 2026-11-13 레드팀)', () => {
+  it('앞 문장이 반말이면 걸린다, 따옴표 안 인용은 뺀다', () => {
+    expect(speech('지금 많이 힘들었구나. 이렇게 솔직하게 적어 준 마음이 참 소중해요.')).toBe('G07');
+    expect(speech('"도와줘!"라고 외치는 장면을 넣어 보면 어때요?')).toBeNull();
+    expect(speech('장면이 생생해요. 다음 장면도 써 볼까요?')).toBeNull();
   });
 });
