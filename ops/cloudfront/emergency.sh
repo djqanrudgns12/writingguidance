@@ -1,5 +1,5 @@
 #!/bin/sh
-# 쌤유 글방 CloudFront WAF(we-edge) 공격 대응 모드 전환 스크립트 — HTTP 홍수 공격 시 해외 접속을 막고 IP 한도를 낮춘다.
+# 쌤유 글방 CloudFront 연결 WAF 공격 대응 모드 전환 스크립트 — HTTP 홍수 공격 시 해외 접속을 막고 IP 한도를 낮춘다.
 #
 # 사용법:
 #   sh ops/cloudfront/emergency.sh status               현재 WAF 규칙·속도 제한 상태 조회
@@ -8,7 +8,7 @@
 #   sh ops/cloudfront/emergency.sh --help               도움말 출력
 #
 # 안전장치:
-#   - 오직 글방 WAF 웹 ACL(기본 we-edge)만 다루며, 쌤유니버스·rollingthunder(rt-edge 등)의 AWS 자원과 맥미니 로컬 서비스는 건드리지 않는다.
+#   - 대상 배포에 연결되고 그 배포만 사용하는 WAF 웹 ACL만 다룬다.
 #   - 평시 한도는 학교 공인 IP 공유(교실 30대 동시 사용)를 고려해 IP당 5분 20,000건으로 유지한다(PLAN §15.1, §15.6-1).
 set -eu
 
@@ -16,7 +16,7 @@ usage() {
   cat <<'EOF'
 사용법: sh ops/cloudfront/emergency.sh <status|on|off> [--dry-run] [--acl-name <이름>]
 
-WAF 웹 ACL(기본 we-edge)의 공격 대응 모드를 조회하거나 전환합니다(AWS 로그인 필요).
+글방 배포의 WebACLId(ARN)로 연결된 WAF 웹 ACL을 찾아 조회하거나 전환합니다(AWS 로그인 필요).
 
 명령:
   status      현재 공격 대응 모드 여부, IP당 5분 속도 제한 수치, 규칙 수를 조회합니다(기본값).
@@ -25,14 +25,17 @@ WAF 웹 ACL(기본 we-edge)의 공격 대응 모드를 조회하거나 전환합
 
 옵션:
   --dry-run           변경될 규칙 구성을 확인만 하고 AWS에 반영하지 않습니다.
-  --acl-name <이름>   대상 CLOUDFRONT 범위 WebACL 이름을 지정합니다(기본: $WE_WAF_ACL_NAME 또는 we-edge).
+  --acl-name <이름>   연결된 WebACL 이름이 이 값과 같은지 추가 확인합니다($WE_WAF_ACL_NAME도 동일).
   -h, --help          이 도움말을 보여 줍니다.
+
+대상 배포는 $WE_CF_DIST_ID 또는 E3TFCRGRU1HG1Q입니다.
 EOF
 }
 
 mode=""
 dry_run=0
-acl_name="${WE_WAF_ACL_NAME:-we-edge}"
+expected_acl_name="${WE_WAF_ACL_NAME:-}"
+dist_id="${WE_CF_DIST_ID:-E3TFCRGRU1HG1Q}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -50,7 +53,7 @@ while [ $# -gt 0 ]; do
       ;;
     --acl-name)
       [ $# -ge 2 ] || { echo "ERROR: --acl-name 뒤에 이름이 필요합니다" >&2; exit 1; }
-      acl_name="$2"
+      expected_acl_name="$2"
       shift 2
       ;;
     *)
@@ -62,9 +65,9 @@ done
 
 mode="${mode:-status}"
 
-case "$acl_name" in
-  rt-*|cl-*|*rollinthunder*|*classlearning*|*ssamuniverse*)
-    echo "ERROR: 다른 서비스의 WebACL($acl_name)은 건드릴 수 없습니다" >&2
+case "$dist_id" in
+  E1VKUXOJAO8KBE|E3DFFMH3173961)
+    echo "ERROR: 다른 서비스의 배포($dist_id)는 건드릴 수 없습니다" >&2
     exit 1
     ;;
 esac
@@ -74,26 +77,61 @@ export AWS_REGION=us-east-1
 NORMAL_LIMIT=20000
 EMERGENCY_LIMIT=3000
 
-aws sts get-caller-identity >/dev/null 2>&1 || {
-  echo "ERROR: 먼저 AWS에 로그인하세요: aws login --profile $AWS_PROFILE" >&2
-  exit 1
-}
-
-acl=$(aws wafv2 list-web-acls --scope CLOUDFRONT --region us-east-1 \
-  --query "WebACLs[?Name=='$acl_name'] | [0]" --output json)
-if [ -z "$acl" ] || [ "$acl" = "null" ]; then
-  echo "ERROR: CLOUDFRONT 범위에서 WebACL '$acl_name'을 찾지 못했습니다" >&2
-  exit 1
-fi
-
-id=$(printf '%s' "$acl" | python3 -c 'import json, sys; print(json.load(sys.stdin)["Id"])')
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+trap 'exit 1' HUP INT TERM
+
+if ! aws sts get-caller-identity >/dev/null 2> "$tmp/identity-error"; then
+  cat "$tmp/identity-error" >&2
+  echo "ERROR: AWS 인증·연결 확인에 실패했습니다. 로그인 확인: aws login --profile $AWS_PROFILE" >&2
+  exit 2
+fi
+
+aws cloudfront get-distribution --id "$dist_id" --output json > "$tmp/distribution.json"
+python3 - "$tmp" "$expected_acl_name" <<'PY'
+import json
+import re
+import sys
+
+tmp, expected_name = sys.argv[1:3]
+with open(f"{tmp}/distribution.json", encoding="utf-8") as fh:
+    cfg = json.load(fh)["Distribution"]["DistributionConfig"]
+if "write.ssamuniverse.com" not in cfg.get("Aliases", {}).get("Items", []):
+    sys.exit("ERROR: 대상 배포의 Aliases에 write.ssamuniverse.com이 없습니다")
+origins = [o for o in cfg.get("Origins", {}).get("Items", [])
+           if o.get("DomainName") == "origin-write.ssamuniverse.com"]
+if len(origins) != 1:
+    sys.exit("ERROR: origin-write.ssamuniverse.com 원본이 정확히 하나여야 합니다")
+arn = cfg.get("WebACLId") or ""
+match = re.fullmatch(r"arn:aws:wafv2:us-east-1:\d{12}:global/webacl/([\w-]+)/([\w-]+)", arn)
+if not match:
+    sys.exit("ERROR: 배포에 연결된 WAFv2 WebACL ARN이 없습니다")
+name, acl_id = match.groups()
+if expected_name and name != expected_name:
+    sys.exit("ERROR: 지정한 WebACL 이름이 배포에 연결된 ACL과 다릅니다")
+for key, value in (("acl-name", name), ("acl-id", acl_id), ("acl-arn", arn)):
+    with open(f"{tmp}/{key}", "w", encoding="utf-8") as fh:
+        fh.write(value)
+PY
+acl_name="$(cat "$tmp/acl-name")"
+id="$(cat "$tmp/acl-id")"
+web_acl_arn="$(cat "$tmp/acl-arn")"
+aws cloudfront list-distributions-by-web-acl-id --web-acl-id "$web_acl_arn" --output json > "$tmp/acl-distributions.json"
+python3 - "$tmp/acl-distributions.json" "$dist_id" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    distributions = json.load(fh)["DistributionList"]
+ids = [d["Id"] for d in distributions.get("Items", [])]
+if distributions.get("IsTruncated") or distributions.get("Quantity") != 1 or ids != [sys.argv[2]]:
+    sys.exit("ERROR: WebACL을 사용하는 배포가 정확히 대상 하나여야 합니다. 공유·미연결 ACL은 변경할 수 없습니다")
+PY
 
 aws wafv2 get-web-acl --scope CLOUDFRONT --region us-east-1 \
-  --name "$acl_name" --id "$id" --output json > "$tmp/acl.json"
+  --name "$acl_name" --id "$id" --cli-binary-format base64 --output json > "$tmp/acl.json"
 
-python3 - "$mode" "$tmp" "$NORMAL_LIMIT" "$EMERGENCY_LIMIT" <<'PY'
+python3 - "$mode" "$tmp" "$NORMAL_LIMIT" "$EMERGENCY_LIMIT" "$web_acl_arn" <<'PY'
 import json
 import sys
 
@@ -102,6 +140,8 @@ with open(f"{tmp}/acl.json", encoding="utf-8") as fh:
     data = json.load(fh)
 
 acl = data["WebACL"]
+if acl["ARN"] != sys.argv[5]:
+    sys.exit("ERROR: 조회한 WebACL이 배포 연결 ARN과 다릅니다")
 rules = [r for r in acl.get("Rules", []) if r.get("Name") != "emergency-korea-only"]
 rate_rules = [r for r in rules if "RateBasedStatement" in r.get("Statement", {})]
 if not rate_rules:
@@ -113,10 +153,17 @@ is_on = any(r.get("Name") == "emergency-korea-only" for r in acl.get("Rules", []
 
 if mode == "status":
     state = "켜짐" if is_on else "꺼짐"
-    print(f"WebACL: {acl['Name']} · 공격 대응 모드: {state} · IP당 5분 {current_limit}건 · 규칙 {len(acl.get('Rules', []))}/5")
+    rate_config = rate["Statement"]["RateBasedStatement"]
+    print(f"WebACL: {acl['Name']} · 공격 대응 모드: {state} · 집계 {rate_config['AggregateKeyType']} · "
+          f"{rate_config.get('EvaluationWindowSec', 300)}초 {current_limit}건 · 규칙 {len(acl.get('Rules', []))}/5")
     sys.exit(0)
 
-rate["Statement"]["RateBasedStatement"]["Limit"] = emergency if mode == "on" else normal
+rate["Statement"]["RateBasedStatement"] = {
+    "Limit": emergency if mode == "on" else normal,
+    "AggregateKeyType": "IP",
+    "EvaluationWindowSec": 300,
+}
+rate["Action"] = {"Block": {}}
 if mode == "on":
     if len(rules) >= 5:
         sys.exit("ERROR: 무료 요금제 WAF 규칙 한도(5개)가 이미 차 있어 국가 차단 규칙을 더할 수 없습니다")
@@ -139,14 +186,19 @@ if mode == "on":
         }
     )
 
-with open(f"{tmp}/rules.json", "w", encoding="utf-8") as fh:
-    json.dump(rules, fh)
-with open(f"{tmp}/vis.json", "w", encoding="utf-8") as fh:
-    json.dump(acl["VisibilityConfig"], fh)
-with open(f"{tmp}/lock", "w", encoding="utf-8") as fh:
-    fh.write(data["LockToken"])
-with open(f"{tmp}/desc", "w", encoding="utf-8") as fh:
-    fh.write(acl.get("Description") or "writeessay edge protection")
+if len(rules) > 5:
+    sys.exit("ERROR: 무료 요금제 WAF 규칙 5개 한도를 넘습니다")
+
+fields = (
+    "Name", "Id", "DefaultAction", "Description", "Rules", "VisibilityConfig",
+    "CustomResponseBodies", "CaptchaConfig", "ChallengeConfig", "TokenDomains",
+    "AssociationConfig", "DataProtectionConfig", "OnSourceDDoSProtectionConfig",
+    "ApplicationConfig", "MonetizationConfig",
+)
+payload = {key: acl[key] for key in fields if key in acl}
+payload.update(Scope="CLOUDFRONT", LockToken=data["LockToken"], Rules=rules)
+with open(f"{tmp}/update.json", "w", encoding="utf-8") as fh:
+    json.dump(payload, fh)
 
 target_limit = emergency if mode == "on" else normal
 print(f"변경 예정: WebACL={acl['Name']} mode={mode} limit={target_limit} rules={len(rules)}/5")
@@ -159,11 +211,8 @@ if [ "$dry_run" = "1" ]; then
   exit 0
 fi
 
-desc=$(cat "$tmp/desc")
-aws wafv2 update-web-acl --scope CLOUDFRONT --region us-east-1 \
-  --name "$acl_name" --id "$id" --lock-token "$(cat "$tmp/lock")" \
-  --default-action Allow={} --description "$desc" --cli-binary-format raw-in-base64-out \
-  --rules "file://$tmp/rules.json" --visibility-config "file://$tmp/vis.json" >/dev/null
+aws wafv2 update-web-acl --region us-east-1 --cli-binary-format base64 \
+  --cli-input-json "file://$tmp/update.json" >/dev/null
 
 echo "적용 완료: $mode (엣지 반영까지 약 1분)"
 sh "$0" status --acl-name "$acl_name"

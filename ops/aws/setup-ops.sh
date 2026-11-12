@@ -84,7 +84,7 @@ case "$email" in
   *) echo "ERROR: 이메일 형식이 올바르지 않습니다: $email" >&2; exit 1 ;;
 esac
 
-dist_id="${dist_id:-E3TFCRGRU1HG1Q}"
+dist_id="${dist_id:-${WE_CF_DIST_ID:-E3TFCRGRU1HG1Q}}"
 # 쌤유니버스·rollingthunder 운영 배포 ID 보호(PLAN §15.6-1)
 case "$dist_id" in
   E1VKUXOJAO8KBE|E3DFFMH3173961)
@@ -106,7 +106,7 @@ svc="${WE_SERVICE_USER:-wesvc}"
 case "$svc" in
   clsvc|rtsvc|root|"") echo "ERROR: 허용되지 않는 서비스 계정: $svc" >&2; exit 1 ;;
 esac
-we_home="/Users/$svc/writeessay-server"
+we_home="${WE_HOME:-/Users/$svc/writeessay-server}"
 secrets_dir="$we_home/secrets"
 origin_secret_file="$HOME/.writeessay-admin/cloudfront-origin-secret"
 
@@ -124,7 +124,12 @@ if [ "$mode" = "apply" ]; then
 fi
 
 svc_write() {
-  (cd / && sudo -u "$svc" -H sh -c "umask 077; mkdir -p '$(dirname "$1")'; cat > '$1.tmp' && chmod 600 '$1.tmp' && mv '$1.tmp' '$1'")
+  (cd / && sudo -u "$svc" -H sh -c '
+    umask 077
+    mkdir -p "$(dirname "$1")" && cat > "$1.tmp" && chmod 600 "$1.tmp" && mv "$1.tmp" "$1" && exit 0
+    rm -f "$1.tmp"
+    exit 1
+  ' sh "$1")
 }
 svc_has() {
   (cd / && sudo -u "$svc" -H test -s "$1")
@@ -133,59 +138,65 @@ svc_has() {
 echo "모드: $mode (AWS_PROFILE=$AWS_PROFILE, 배포=$dist_id, 알림=$email)"
 [ "$mode" = "dry-run" ] && echo "안내: 기본 --dry-run 모드이므로 변경 API는 부르지 않습니다. 실제 반영은 --apply 를 붙이세요."
 
-if ! aws sts get-caller-identity >/dev/null 2>&1; then
-  if [ "$mode" = "dry-run" ]; then
-    echo
-    echo "[오프라인 dry-run 요약 — AWS 로그인 전이라 원격 조회 없이 예정 작업만 표시합니다]"
-    [ "$skip_cf" = "0" ] && echo "  1. CloudFront 함수 we-viewer-request (cloudfront-js-2.0) 생성/갱신 및 LIVE 게시"
-    [ "$skip_cf" = "0" ] && echo "  2. 배포 $dist_id 갱신: x-we-origin-auth 머리, HTTP/2+3, IPv6, /assets/* · /art/* 캐시 동작, viewer-request 연결"
-    [ "$skip_waf" = "0" ] && echo "  3. WAF WebACL(배포 연결 WebACL 또는 we-edge): CommonRuleSet 4개 예외(SizeRestrictions_BODY 등) + IP당 5분 20,000건"
-    echo "  4. SNS 주제 we-alerts + 이메일($email) 구독"
-    echo "  5. 최소 권한 IAM 사용자 we-macmini (Writeessay 지표 + we-alerts 발송만, S3 백업 없음)"
-    echo "  6. CloudWatch 알람 we-heartbeat-missing(15분) · we-cloudfront-5xx(10% 초과 10분)"
-    echo "원격 상태까지 대조하려면 먼저 로그인하세요: aws login --profile $AWS_PROFILE"
-    exit 0
+tmp="$(mktemp -d)"
+cleanup() {
+  result=$?
+  trap - EXIT
+  if [ -s "$tmp/created-key-id" ]; then
+    if ! aws iam delete-access-key --user-name we-macmini --access-key-id "$(cat "$tmp/created-key-id")"; then
+      echo "ERROR: 저장하지 못한 새 IAM 키 회수에 실패했습니다. we-macmini 액세스 키를 확인하세요." >&2
+      result=1
+    fi
   fi
-  echo "ERROR: 먼저 AWS에 로그인하세요: aws login --profile $AWS_PROFILE" >&2
-  exit 1
+  rm -rf "$tmp"
+  exit "$result"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
+if ! aws sts get-caller-identity --output json > "$tmp/identity.json" 2> "$tmp/identity-error"; then
+  cat "$tmp/identity-error" >&2
+  echo "ERROR: AWS 인증·연결 확인에 실패했습니다. 원격 검증을 완료하지 못했습니다. 로그인 확인: aws login --profile $AWS_PROFILE" >&2
+  exit 2
 fi
 
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+# --skip 옵션을 써도 다른 서비스의 배포를 대상으로 감시 자원을 만들지 않는다.
+aws cloudfront get-distribution-config --id "$dist_id" --output json > "$tmp/dist-raw.json"
+python3 - "$tmp" <<'PY'
+import json
+import sys
+
+tmp = sys.argv[1]
+with open(f"{tmp}/dist-raw.json", encoding="utf-8") as fh:
+    cfg = json.load(fh)["DistributionConfig"]
+if "write.ssamuniverse.com" not in cfg.get("Aliases", {}).get("Items", []):
+    sys.exit("ERROR: 대상 배포의 Aliases에 write.ssamuniverse.com이 없습니다")
+origins = [o for o in cfg.get("Origins", {}).get("Items", [])
+           if o.get("DomainName") == "origin-write.ssamuniverse.com"]
+if len(origins) != 1:
+    sys.exit("ERROR: origin-write.ssamuniverse.com 원본이 정확히 하나여야 합니다")
+with open(f"{tmp}/web-acl-arn", "w", encoding="utf-8") as fh:
+    fh.write(cfg.get("WebACLId") or "")
+PY
 
 # ── 1 & 2. CloudFront 함수 및 배포 설정
-web_acl_arn=""
+web_acl_arn="$(cat "$tmp/web-acl-arn")"
 if [ "$skip_cf" = "0" ]; then
   echo
   echo "== 1. CloudFront 함수 we-viewer-request"
   existing_fn="$(aws cloudfront list-functions --query "FunctionList.Items[?Name=='we-viewer-request'] | [0].Name" --output text)"
-  fn_arn=""
-  if [ "$mode" = "dry-run" ]; then
-    if [ "$existing_fn" = "we-viewer-request" ]; then
-      echo "[dry-run] 기존 함수 we-viewer-request 갱신 및 LIVE 게시 예정 ($fn_file)"
-    else
-      echo "[dry-run] 새 함수 we-viewer-request 생성(cloudfront-js-2.0) 및 LIVE 게시 예정 ($fn_file)"
-    fi
-    fn_arn="arn:aws:cloudfront::000000000000:function/we-viewer-request"
+  if [ "$existing_fn" = "we-viewer-request" ]; then
+    aws cloudfront describe-function --name we-viewer-request --stage DEVELOPMENT --output json > "$tmp/function.json"
+    fn_arn="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["FunctionSummary"]["FunctionMetadata"]["FunctionARN"])' "$tmp/function.json")"
+    dev_etag="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ETag"])' "$tmp/function.json")"
+    echo "기존 함수 we-viewer-request 갱신 및 LIVE 게시 예정 ($fn_file)"
   else
-    fn_cfg='{"Comment":"writeessay canonical host + x-we-client-ip","Runtime":"cloudfront-js-2.0"}'
-    if [ "$existing_fn" = "we-viewer-request" ]; then
-      dev_etag="$(aws cloudfront describe-function --name we-viewer-request --stage DEVELOPMENT --query ETag --output text)"
-      aws cloudfront update-function --name we-viewer-request --if-match "$dev_etag" \
-        --function-config "$fn_cfg" --function-code "fileb://$fn_file" >/dev/null
-    else
-      aws cloudfront create-function --name we-viewer-request \
-        --function-config "$fn_cfg" --function-code "fileb://$fn_file" >/dev/null
-    fi
-    pub_etag="$(aws cloudfront describe-function --name we-viewer-request --stage DEVELOPMENT --query ETag --output text)"
-    fn_arn="$(aws cloudfront publish-function --name we-viewer-request --if-match "$pub_etag" \
-      --query 'FunctionSummary.FunctionMetadata.FunctionARN' --output text)"
-    echo "함수 LIVE 게시 완료: $fn_arn"
+    fn_arn="$(python3 -c 'import json,sys; print("arn:aws:cloudfront::" + json.load(open(sys.argv[1]))["Account"] + ":function/we-viewer-request")' "$tmp/identity.json")"
+    echo "새 함수 we-viewer-request 생성(cloudfront-js-2.0) 및 LIVE 게시 예정 ($fn_file)"
   fi
 
   echo
   echo "== 2. CloudFront 배포 $dist_id 설정 보강"
-  aws cloudfront get-distribution-config --id "$dist_id" --output json > "$tmp/dist-raw.json"
   python3 - "$tmp/dist-raw.json" "$origin_secret_file" "$fn_arn" "$tmp/dist-next.json" "$tmp/dist-etag" "$tmp/web-acl-arn" <<'PY'
 import json
 import sys
@@ -217,7 +228,7 @@ if not cfg.get("IsIPV6Enabled", False):
 origins = cfg.get("Origins", {}).get("Items", [])
 if not origins:
     sys.exit("ERROR: 배포에 원본(Origin)이 없습니다")
-origin = origins[0]
+origin = next(o for o in origins if o.get("DomainName") == "origin-write.ssamuniverse.com")
 origin_id = origin["Id"]
 
 ch_items = list(origin.get("CustomHeaders", {}).get("Items", []))
@@ -233,25 +244,28 @@ if not found_hdr:
     ch_items.append({"HeaderName": "x-we-origin-auth", "HeaderValue": secret})
 origin["CustomHeaders"] = {"Quantity": len(ch_items), "Items": ch_items}
 
-fn_assoc = {
-    "Quantity": 1,
-    "Items": [{"FunctionARN": fn_arn, "EventType": "viewer-request"}],
-}
+def function_associations(behavior):
+    items = [a for a in behavior.get("FunctionAssociations", {}).get("Items", [])
+             if a.get("EventType") != "viewer-request"]
+    items.append({"FunctionARN": fn_arn, "EventType": "viewer-request"})
+    return {"Quantity": len(items), "Items": items}
 
 default_cb = cfg["DefaultCacheBehavior"]
 default_cb["ViewerProtocolPolicy"] = "redirect-to-https"
 default_cb["CachePolicyId"] = default_cb.get("CachePolicyId") or CACHING_DISABLED
 default_cb["OriginRequestPolicyId"] = default_cb.get("OriginRequestPolicyId") or ALL_VIEWER_EXCEPT_HOST
+default_cb.pop("ForwardedValues", None)
 cur_fn = default_cb.get("FunctionAssociations", {}).get("Items", [])
 if not any(x.get("EventType") == "viewer-request" and x.get("FunctionARN") == fn_arn for x in cur_fn):
     changes.append("DefaultCacheBehavior(*) viewer-request 함수 연결")
-default_cb["FunctionAssociations"] = fn_assoc
+default_cb["FunctionAssociations"] = function_associations(default_cb)
 
 cb_list = list(cfg.get("CacheBehaviors", {}).get("Items", []))
 by_pattern = {b["PathPattern"]: b for b in cb_list}
 
 for pattern in ("/assets/*", "/art/*"):
-    entry = {
+    entry = dict(by_pattern.get(pattern, {}))
+    entry.update({
         "PathPattern": pattern,
         "TargetOriginId": origin_id,
         "TrustedSigners": {"Enabled": False, "Quantity": 0},
@@ -265,10 +279,11 @@ for pattern in ("/assets/*", "/art/*"):
         "SmoothStreaming": False,
         "Compress": True,
         "LambdaFunctionAssociations": {"Quantity": 0},
-        "FunctionAssociations": fn_assoc,
+        "FunctionAssociations": function_associations(entry),
         "FieldLevelEncryptionId": "",
         "CachePolicyId": CACHING_OPTIMIZED,
-    }
+    })
+    entry.pop("ForwardedValues", None)
     if pattern not in by_pattern:
         changes.append(f"CacheBehavior 추가: {pattern} (Managed-CachingOptimized)")
         cb_list.append(entry)
@@ -291,74 +306,65 @@ print("배포 변경 항목 요약:", ", ".join(changes) if changes else "변경
 PY
 
   web_acl_arn="$(cat "$tmp/web-acl-arn")"
-  if [ "$mode" = "apply" ]; then
-    aws cloudfront update-distribution --id "$dist_id" --if-match "$(cat "$tmp/dist-etag")" \
-      --distribution-config "file://$tmp/dist-next.json" >/dev/null
-    echo "CloudFront 배포 갱신 요청 완료 ($dist_id)"
-  else
-    echo "[dry-run] CloudFront update-distribution 호출 생략"
-  fi
 fi
 
 # ── 3. CloudFront WAF WebACL 설정 (CommonRuleSet 4개 예외 + IP당 5분 20,000건)
 if [ "$skip_waf" = "0" ]; then
   echo
-  echo "== 3. WAF 웹 ACL(we-edge 또는 배포 연결 WebACL) 규칙 보강"
-  if [ -z "$web_acl_arn" ]; then
-    web_acl_arn="$(aws cloudfront get-distribution --id "$dist_id" --query 'Distribution.DistributionConfig.WebACLId' --output text 2>/dev/null || true)"
-    [ "$web_acl_arn" = "None" ] && web_acl_arn=""
-  fi
+  echo "== 3. 배포에 연결된 WAF 웹 ACL 규칙 보강"
+  python3 - "$web_acl_arn" "$tmp" <<'PY'
+import re
+import sys
 
-  acl_name=""
-  acl_id=""
-  if [ -n "$web_acl_arn" ]; then
-    # ARN 형식: arn:aws:wafv2:us-east-1:<account>:global/webacl/<name>/<id>
-    acl_name="$(printf '%s' "$web_acl_arn" | awk -F'/' '{print $(NF-1)}')"
-    acl_id="$(printf '%s' "$web_acl_arn" | awk -F'/' '{print $NF}')"
-  else
-    found_acl="$(aws wafv2 list-web-acls --scope CLOUDFRONT --region "$R_GLOBAL" \
-      --query "WebACLs[?Name=='we-edge'] | [0]" --output json)"
-    if [ -n "$found_acl" ] && [ "$found_acl" != "null" ]; then
-      acl_name="we-edge"
-      acl_id="$(printf '%s' "$found_acl" | python3 -c 'import json,sys; print(json.load(sys.stdin)["Id"])')"
-    fi
-  fi
-
-  case "$acl_name" in
-    rt-*|cl-*|*rollinthunder*|*classlearning*|*ssamuniverse*)
-      echo "ERROR: 다른 서비스의 WebACL($acl_name)이 감지되어 중단합니다" >&2
-      exit 1
-      ;;
-  esac
-
-  if [ -z "$acl_name" ] || [ -z "$acl_id" ]; then
-    echo "주의: 배포에 연결된 WebACL을 찾지 못했습니다. 콘솔에서 we-edge 연결 후 다시 실행하거나 --skip-waf 를 쓰세요." >&2
-    [ "$mode" = "apply" ] && exit 1
-  else
-    aws wafv2 get-web-acl --scope CLOUDFRONT --region "$R_GLOBAL" \
-      --name "$acl_name" --id "$acl_id" --output json > "$tmp/acl.json"
-
-    python3 - "$tmp/acl.json" "$overrides_file" "$tmp" <<'PY'
+arn, tmp = sys.argv[1:3]
+match = re.fullmatch(r"arn:aws:wafv2:us-east-1:\d{12}:global/webacl/([\w-]+)/([\w-]+)", arn)
+if not match:
+    sys.exit("ERROR: 배포에 연결된 WAFv2 WebACL ARN이 없습니다. 콘솔에서 연결을 확인하세요")
+for key, value in zip(("acl-name", "acl-id"), match.groups()):
+    with open(f"{tmp}/{key}", "w", encoding="utf-8") as fh:
+        fh.write(value)
+PY
+  acl_name="$(cat "$tmp/acl-name")"
+  acl_id="$(cat "$tmp/acl-id")"
+  aws cloudfront list-distributions-by-web-acl-id --web-acl-id "$web_acl_arn" --output json > "$tmp/acl-distributions.json"
+  python3 - "$tmp/acl-distributions.json" "$dist_id" <<'PY'
 import json
 import sys
 
-acl_path, ov_path, tmp = sys.argv[1:4]
+with open(sys.argv[1], encoding="utf-8") as fh:
+    distributions = json.load(fh)["DistributionList"]
+ids = [d["Id"] for d in distributions.get("Items", [])]
+if distributions.get("IsTruncated") or distributions.get("Quantity") != 1 or ids != [sys.argv[2]]:
+    sys.exit("ERROR: WebACL을 사용하는 배포가 정확히 대상 하나여야 합니다. 공유·미연결 ACL은 변경할 수 없습니다")
+PY
+  aws wafv2 get-web-acl --scope CLOUDFRONT --region "$R_GLOBAL" \
+    --name "$acl_name" --id "$acl_id" --cli-binary-format base64 --output json > "$tmp/acl.json"
+
+  python3 - "$tmp/acl.json" "$overrides_file" "$tmp" "$web_acl_arn" <<'PY'
+import json
+import sys
+
+acl_path, ov_path, tmp, expected_arn = sys.argv[1:5]
 with open(acl_path, encoding="utf-8") as fh:
     data = json.load(fh)
 with open(ov_path, encoding="utf-8") as fh:
     overrides = json.load(fh)
 
 acl = data["WebACL"]
+if acl["ARN"] != expected_arn:
+    sys.exit("ERROR: 조회한 WebACL이 배포 연결 ARN과 다릅니다")
 rules = list(acl.get("Rules", []))
 notes = []
 
 has_common = False
 for r in rules:
     mrs = r.get("Statement", {}).get("ManagedRuleGroupStatement")
-    if mrs and mrs.get("Name") == "AWSManagedRulesCommonRuleSet":
+    if mrs and mrs.get("VendorName") == "AWS" and mrs.get("Name") == "AWSManagedRulesCommonRuleSet":
         has_common = True
         r["OverrideAction"] = {"None": {}}
-        mrs["RuleActionOverrides"] = overrides
+        merged = {o["Name"]: o for o in mrs.get("RuleActionOverrides", [])}
+        merged.update({o["Name"]: o for o in overrides})
+        mrs["RuleActionOverrides"] = list(merged.values())
         notes.append("AWSManagedRulesCommonRuleSet 4개 예외(SizeRestrictions_BODY 등) 적용")
 
 if not has_common:
@@ -386,7 +392,9 @@ if not has_common:
 
 rate_rule = next((r for r in rules if "RateBasedStatement" in r.get("Statement", {})), None)
 if rate_rule:
-    rate_rule["Statement"]["RateBasedStatement"]["Limit"] = 20000
+    rate_rule["Statement"]["RateBasedStatement"] = {
+        "Limit": 20000, "AggregateKeyType": "IP", "EvaluationWindowSec": 300,
+    }
     rate_rule["Action"] = {"Block": {}}
     notes.append("기존 RateBasedStatement 한도를 IP당 5분 20,000건으로 설정")
 else:
@@ -398,7 +406,7 @@ else:
             "Name": "we-rate-limit-ip-20k",
             "Priority": prio,
             "Action": {"Block": {}},
-            "Statement": {"RateBasedStatement": {"Limit": 20000, "AggregateKeyType": "IP"}},
+            "Statement": {"RateBasedStatement": {"Limit": 20000, "AggregateKeyType": "IP", "EvaluationWindowSec": 300}},
             "VisibilityConfig": {
                 "SampledRequestsEnabled": True,
                 "CloudWatchMetricsEnabled": True,
@@ -408,35 +416,104 @@ else:
     )
     notes.append("we-rate-limit-ip-20k (IP당 5분 20,000건) 규칙 추가")
 
-with open(f"{tmp}/waf-rules.json", "w", encoding="utf-8") as fh:
-    json.dump(rules, fh)
-with open(f"{tmp}/waf-vis.json", "w", encoding="utf-8") as fh:
-    json.dump(acl["VisibilityConfig"], fh)
-with open(f"{tmp}/waf-lock", "w", encoding="utf-8") as fh:
-    fh.write(data["LockToken"])
-with open(f"{tmp}/waf-desc", "w", encoding="utf-8") as fh:
-    fh.write(acl.get("Description") or "writeessay edge protection")
+if len(rules) > 5:
+    sys.exit("ERROR: 무료 요금제 WAF 규칙 5개 한도를 넘습니다")
+
+# get 응답의 읽기 전용 필드는 제외하고 UpdateWebACL의 모든 기존 설정을 보존한다.
+fields = (
+    "Name", "Id", "DefaultAction", "Description", "Rules", "VisibilityConfig",
+    "CustomResponseBodies", "CaptchaConfig", "ChallengeConfig", "TokenDomains",
+    "AssociationConfig", "DataProtectionConfig", "OnSourceDDoSProtectionConfig",
+    "ApplicationConfig", "MonetizationConfig",
+)
+payload = {key: acl[key] for key in fields if key in acl}
+payload.update(Scope="CLOUDFRONT", LockToken=data["LockToken"], Rules=rules)
+with open(f"{tmp}/waf-update.json", "w", encoding="utf-8") as fh:
+    json.dump(payload, fh)
 
 print(f"WebACL({acl['Name']}): " + ", ".join(notes) + f" (총 {len(rules)}/5 규칙)")
 PY
 
-    if [ "$mode" = "apply" ]; then
-      aws wafv2 update-web-acl --scope CLOUDFRONT --region "$R_GLOBAL" \
-        --name "$acl_name" --id "$acl_id" --lock-token "$(cat "$tmp/waf-lock")" \
-        --default-action Allow={} --description "$(cat "$tmp/waf-desc")" \
-        --cli-binary-format raw-in-base64-out \
-        --rules "file://$tmp/waf-rules.json" --visibility-config "file://$tmp/waf-vis.json" >/dev/null
-      printf '%s\n' "$acl_name" | svc_write "$we_home/aws/web-acl-name"
-      echo "WAF WebACL 갱신 완료: $acl_name"
-    else
-      echo "[dry-run] WAF update-web-acl 호출 생략"
-    fi
-  fi
 fi
 
 # ── 4, 5, 6. SNS 알림 주제 · 최소 권한 IAM 사용자(we-macmini, 백업 없음) · CloudWatch 알람 2개
 echo
 echo "== 4~6. SNS(we-alerts) · IAM(we-macmini) · CloudWatch 알람(we-heartbeat-missing, we-cloudfront-5xx)"
+user_exists=1
+if ! aws iam get-user --user-name we-macmini --output json > "$tmp/user.json" 2> "$tmp/user-error"; then
+  if grep -q 'NoSuchEntity' "$tmp/user-error"; then
+    user_exists=0
+  else
+    cat "$tmp/user-error" >&2
+    exit 1
+  fi
+fi
+key_count=0
+if [ "$user_exists" = "1" ]; then
+  aws iam list-access-keys --user-name we-macmini --output json > "$tmp/keys.json"
+  key_count="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["AccessKeyMetadata"]))' "$tmp/keys.json")"
+fi
+has_credentials=0
+if [ "$mode" = "apply" ]; then
+  if svc_has "$secrets_dir/aws-macmini-credentials"; then
+    has_credentials=1
+  elif [ "$key_count" != "0" ]; then
+    echo "ERROR: we-macmini에 기존 액세스 키가 ${key_count}개 있지만 로컬 자격 파일이 없습니다. 기존 키의 사용처와 자격 파일을 확인·복구한 뒤 다시 실행하세요. 새 키를 만들지 않았습니다." >&2
+    exit 1
+  fi
+fi
+
+aws sns list-topics --region "$R_GLOBAL" --output json > "$tmp/topics.json"
+python3 - "$tmp" <<'PY'
+import json
+import sys
+
+tmp = sys.argv[1]
+with open(f"{tmp}/identity.json", encoding="utf-8") as fh:
+    account = json.load(fh)["Account"]
+topic = f"arn:aws:sns:us-east-1:{account}:we-alerts"
+with open(f"{tmp}/topics.json", encoding="utf-8") as fh:
+    exists = any(t["TopicArn"] == topic for t in json.load(fh)["Topics"])
+with open(f"{tmp}/topic", "w", encoding="utf-8") as fh:
+    fh.write(topic)
+with open(f"{tmp}/topic-exists", "w", encoding="utf-8") as fh:
+    fh.write("1" if exists else "0")
+policy = {
+    "Version": "2012-10-17",
+    "Statement": [
+        {"Sid": "HeartbeatMetricOnly", "Effect": "Allow", "Action": "cloudwatch:PutMetricData",
+         "Resource": "*", "Condition": {"StringEquals": {"cloudwatch:namespace": "Writeessay"}}},
+        {"Sid": "AlertPublishOnly", "Effect": "Allow", "Action": "sns:Publish", "Resource": topic},
+    ],
+}
+with open(f"{tmp}/iam-policy.json", "w", encoding="utf-8") as fh:
+    json.dump(policy, fh)
+PY
+topic="$(cat "$tmp/topic")"
+if [ "$(cat "$tmp/topic-exists")" = "1" ]; then
+  aws sns list-subscriptions-by-topic --region "$R_GLOBAL" --topic-arn "$topic" --output json > "$tmp/subscriptions.json"
+else
+  printf '%s\n' '{"Subscriptions":[]}' > "$tmp/subscriptions.json"
+fi
+subscription_state="$(python3 - "$tmp/subscriptions.json" "$email" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    subscriptions = json.load(fh)["Subscriptions"]
+matches = [s for s in subscriptions if s.get("Protocol") == "email" and s.get("Endpoint") == sys.argv[2]]
+if any(s.get("SubscriptionArn") == "PendingConfirmation" for s in matches):
+    print("pending")
+elif matches:
+    print("confirmed")
+else:
+    print("missing")
+PY
+)"
+if [ "$subscription_state" = "pending" ]; then
+  echo "SNS 구독 확인 대기(PendingConfirmation) — 기존 확인 메일의 링크를 눌러 주세요."
+fi
+
 if [ "$mode" = "dry-run" ]; then
   echo "[dry-run] 생성·갱신 예정:"
   echo "  - SNS 주제: we-alerts ($R_GLOBAL) + 이메일 구독($email)"
@@ -449,45 +526,69 @@ if [ "$mode" = "dry-run" ]; then
   exit 0
 fi
 
+# ── 모든 원격 조회·구성 계산·사전 검증이 끝난 뒤에만 변경한다.
+if [ "$skip_cf" = "0" ]; then
+  fn_cfg='{"Comment":"writeessay canonical host + x-we-client-ip","Runtime":"cloudfront-js-2.0"}'
+  if [ "$existing_fn" = "we-viewer-request" ]; then
+    aws cloudfront update-function --name we-viewer-request --if-match "$dev_etag" \
+      --function-config "$fn_cfg" --function-code "fileb://$fn_file" --output json > "$tmp/function-updated.json"
+  else
+    aws cloudfront create-function --name we-viewer-request \
+      --function-config "$fn_cfg" --function-code "fileb://$fn_file" --output json > "$tmp/function-updated.json"
+  fi
+  pub_etag="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ETag"])' "$tmp/function-updated.json")"
+  aws cloudfront publish-function --name we-viewer-request --if-match "$pub_etag" >/dev/null
+  echo "함수 LIVE 게시 완료: $fn_arn"
+  aws cloudfront update-distribution --id "$dist_id" --if-match "$(cat "$tmp/dist-etag")" \
+    --distribution-config "file://$tmp/dist-next.json" >/dev/null
+  echo "CloudFront 배포 갱신 요청 완료 ($dist_id)"
+fi
+if [ "$skip_waf" = "0" ]; then
+  aws wafv2 update-web-acl --region "$R_GLOBAL" --cli-binary-format base64 \
+    --cli-input-json "file://$tmp/waf-update.json" >/dev/null
+  echo "WAF WebACL 갱신 완료: $acl_name"
+fi
+
 topic="$(aws sns create-topic --region "$R_GLOBAL" --name we-alerts --query TopicArn --output text)"
 printf '%s\n' "$topic" | svc_write "$we_home/aws/alerts-topic"
 printf '%s\n' "$dist_id" | svc_write "$we_home/aws/distribution-id"
 
-aws iam get-user --user-name we-macmini >/dev/null 2>&1 \
-  || aws iam create-user --user-name we-macmini --tags Key=project,Value=writeessay >/dev/null
+if [ "$user_exists" = "0" ]; then
+  aws iam create-user --user-name we-macmini --tags Key=project,Value=writeessay >/dev/null
+fi
+aws iam put-user-policy --user-name we-macmini --policy-name we-macmini-least-privilege \
+  --policy-document "file://$tmp/iam-policy.json"
 
-aws iam put-user-policy --user-name we-macmini --policy-name we-macmini-least-privilege --policy-document "{
-  \"Version\": \"2012-10-17\",
-  \"Statement\": [
-    {
-      \"Sid\": \"HeartbeatMetricOnly\",
-      \"Effect\": \"Allow\",
-      \"Action\": \"cloudwatch:PutMetricData\",
-      \"Resource\": \"*\",
-      \"Condition\": { \"StringEquals\": { \"cloudwatch:namespace\": \"Writeessay\" } }
-    },
-    {
-      \"Sid\": \"AlertPublishOnly\",
-      \"Effect\": \"Allow\",
-      \"Action\": \"sns:Publish\",
-      \"Resource\": \"$topic\"
-    }
-  ]
-}"
+if [ "$has_credentials" = "0" ]; then
+  aws iam create-access-key --user-name we-macmini --output json > "$tmp/new-key.json"
+  # 검증·저장 중 실패하거나 중단되면 EXIT 처리에서 이번에 만든 키만 회수한다.
+  python3 - "$tmp" <<'PY'
+import json
+import re
+import sys
 
-if ! svc_has "$secrets_dir/aws-macmini-credentials"; then
-  aws iam create-access-key --user-name we-macmini --output json | python3 -c '
-import json, sys
-k = json.load(sys.stdin)["AccessKey"]
-print("[default]\naws_access_key_id = %s\naws_secret_access_key = %s" % (k["AccessKeyId"], k["SecretAccessKey"]))
-' | svc_write "$secrets_dir/aws-macmini-credentials"
+tmp = sys.argv[1]
+with open(f"{tmp}/new-key.json", encoding="utf-8") as fh:
+    key = json.load(fh)["AccessKey"]
+key_id = key.get("AccessKeyId")
+if not isinstance(key_id, str) or not re.fullmatch(r"[A-Z0-9]{16,128}", key_id):
+    sys.exit("ERROR: 생성된 IAM 키 ID를 확인할 수 없습니다. we-macmini 키 상태를 확인하세요")
+with open(f"{tmp}/created-key-id", "w", encoding="utf-8") as fh:
+    fh.write(key_id)
+secret = key.get("SecretAccessKey")
+if not isinstance(secret, str) or not secret or any(c.isspace() for c in secret):
+    sys.exit("ERROR: 생성된 IAM 자격 응답이 올바르지 않습니다")
+with open(f"{tmp}/credentials", "w", encoding="utf-8") as fh:
+    fh.write(f"[default]\naws_access_key_id = {key_id}\naws_secret_access_key = {secret}\n")
+PY
+  svc_write "$secrets_dir/aws-macmini-credentials" < "$tmp/credentials"
+  rm "$tmp/created-key-id"
   echo "IAM 액세스 키 저장 완료: $secrets_dir/aws-macmini-credentials (600, 화면 출력 없음)"
 else
   echo "IAM 액세스 키 유지: $secrets_dir/aws-macmini-credentials (이미 존재)"
 fi
 
-if ! aws sns list-subscriptions-by-topic --region "$R_GLOBAL" --topic-arn "$topic" \
-  --query 'Subscriptions[].Endpoint' --output text | grep -qF "$email"; then
+if [ "$subscription_state" = "missing" ]; then
   aws sns subscribe --region "$R_GLOBAL" --topic-arn "$topic" \
     --protocol email --notification-endpoint "$email" >/dev/null
   echo "SNS 구독 요청 발송 — 메일함에서 'AWS Notification - Subscription Confirmation' 확인 링크를 눌러 주세요."
