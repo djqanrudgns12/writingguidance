@@ -15,7 +15,10 @@ import {
 import { writeEvalReport } from './report.ts';
 import type { EvalRawRecord } from './metrics.ts';
 
-const config = loadCandidatesConfig();
+// 비교 판정은 후보 3개용이다. 후보 목록이 늘어도(생각 깊이 비교) 처음 세 후보로 시험한다.
+const loaded = loadCandidatesConfig();
+const JUDGE_IDS = ['haiku-off', 'haiku-low', 'sonnet-low'];
+const config = { ...loaded, candidates: loaded.candidates.filter(c => JUDGE_IDS.includes(c.id)) };
 const docs = loadDataset().slice(0, 2);
 
 function fixture(t: { after: (fn: () => void) => void }) {

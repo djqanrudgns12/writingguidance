@@ -23,10 +23,60 @@
       }
     },
     {
+      "id": "haiku-medium",
+      "label": "Haiku 5.5 (생각 보통)",
+      "model": "claude-haiku-5-5",
+      "effort": "medium",
+      "pricing": {
+        "inputUsdPerMTok": 0.1,
+        "outputUsdPerMTok": 0.5
+      }
+    },
+    {
+      "id": "haiku-high",
+      "label": "Haiku 5.5 (생각 높음)",
+      "model": "claude-haiku-5-5",
+      "effort": "high",
+      "pricing": {
+        "inputUsdPerMTok": 0.1,
+        "outputUsdPerMTok": 0.5
+      }
+    },
+    {
+      "id": "sonnet-off",
+      "label": "Sonnet 5.5 (생각 끔)",
+      "model": "claude-sonnet-5-5",
+      "effort": "off",
+      "pricing": {
+        "inputUsdPerMTok": 2,
+        "outputUsdPerMTok": 10
+      }
+    },
+    {
       "id": "sonnet-low",
       "label": "Sonnet 5.5 (생각 낮음)",
       "model": "claude-sonnet-5-5",
       "effort": "low",
+      "pricing": {
+        "inputUsdPerMTok": 2,
+        "outputUsdPerMTok": 10
+      }
+    },
+    {
+      "id": "sonnet-medium",
+      "label": "Sonnet 5.5 (생각 보통)",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "pricing": {
+        "inputUsdPerMTok": 2,
+        "outputUsdPerMTok": 10
+      }
+    },
+    {
+      "id": "sonnet-high",
+      "label": "Sonnet 5.5 (생각 높음)",
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
       "pricing": {
         "inputUsdPerMTok": 2,
         "outputUsdPerMTok": 10

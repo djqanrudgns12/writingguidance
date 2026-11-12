@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { createFakeAi } from '../src/ai/fake.ts';
 import type { AiInput } from '../src/ai/port.ts';
 import { guardText, systemPrompt, userPrompt } from '../src/ai/prompts/index.ts';
-import { runPolish, runStructured, type PolishLine } from '../src/ai/run.ts';
+import { fallbackAttempt, firstAttempt, runPolish, runStructured, type PolishLine } from '../src/ai/run.ts';
 import { providerSchema, spellResultSchema } from '../src/ai/schemas.ts';
 import { cleanDirection, cleanFeedback, cleanSpell, fitLength } from '../src/ai/validate.ts';
 
@@ -78,6 +78,16 @@ describe('AI 재시도·대체(PLAN §8.2, PRD 6.5)', () => {
     ).catch(e => e);
     expect((err as AppError).code).toBe('E_AI_TIMEOUT');
     expect(fake.calls).toHaveLength(1);
+  });
+
+  it('생각 깊이별 출력 여유: 끔·낮음은 그대로, 보통·높음은 더하고, 대체 시도는 대체 생각 깊이 기준으로 바꾼다', () => {
+    const h = defaultConfig.AI_THINKING_HEADROOM_TOKENS;
+    const low = firstAttempt({ ...defaultConfig, AI_EFFORT_FEEDBACK: 'low' }, 'FEEDBACK', 800);
+    expect(low.maxTokens).toBe(800 + h.low);
+    const high = firstAttempt({ ...defaultConfig, AI_EFFORT_FEEDBACK: 'high' }, 'FEEDBACK', 800);
+    expect(high.maxTokens).toBe(800 + h.high);
+    const fb = fallbackAttempt({ ...defaultConfig, AI_EFFORT_FALLBACK: 'medium' }, high, false);
+    expect(fb.maxTokens).toBe(800 + h.medium);
   });
 
   it('다듬은 글: 글자를 보낸 뒤 거절되면 reset 뒤 대체 모델이 처음부터', async () => {

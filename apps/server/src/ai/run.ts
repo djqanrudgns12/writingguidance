@@ -57,15 +57,22 @@ const EFFORT_KEY = {
   POLISH: 'AI_EFFORT_POLISH',
 } as const;
 
+/** 생각 토큰도 출력 한도 안에 들어가므로 생각 깊이만큼 여유를 더한다(설정 `AI_THINKING_HEADROOM_TOKENS`). */
+function headroom(config: Readonly<Config>, effort: Effort): number {
+  return config.AI_THINKING_HEADROOM_TOKENS[effort];
+}
+
 export function firstAttempt(config: Readonly<Config>, button: AiButton, maxTokens: number): Attempt {
-  return { model: config[MODEL_KEY[button]], effort: config[EFFORT_KEY[button]] as Effort, maxTokens };
+  const effort = config[EFFORT_KEY[button]] as Effort;
+  return { model: config[MODEL_KEY[button]], effort, maxTokens: maxTokens + headroom(config, effort) };
 }
 
 export function fallbackAttempt(config: Readonly<Config>, prev: Attempt, serverFallback: boolean): Attempt {
+  const effort = config.AI_EFFORT_FALLBACK as Effort;
   return {
     model: config.MODEL_FALLBACK,
-    effort: config.AI_EFFORT_FALLBACK as Effort,
-    maxTokens: prev.maxTokens,
+    effort,
+    maxTokens: prev.maxTokens - headroom(config, prev.effort) + headroom(config, effort),
     ...(serverFallback ? { serverFallback: true } : {}),
   };
 }

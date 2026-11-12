@@ -46,6 +46,8 @@ export interface RunCliOptions {
   readonly estimateOnly: boolean;
   readonly approvedCost: boolean;
   readonly dateStr: string;
+  /** 일부 후보만 돌릴 때 후보 ID 목록 */
+  readonly only?: readonly string[];
 }
 
 export function parseRunArgs(argv: readonly string[], defaultRepeat: number): RunCliOptions {
@@ -54,6 +56,7 @@ export function parseRunArgs(argv: readonly string[], defaultRepeat: number): Ru
   let estimateOnly = false;
   let approvedCost = false;
   let dateStr = dayKey(Date.now(), defaultConfig.TIMEZONE);
+  let only: readonly string[] | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -83,10 +86,19 @@ export function parseRunArgs(argv: readonly string[], defaultRepeat: number): Ru
       }
       dateStr = next;
       i += 1;
+    } else if (arg === '--only') {
+      // 이미 돌린 후보를 다시 돌리지 않으려고 일부 후보만 고른다(쉼표로 구분한 후보 ID).
+      const next = argv[i + 1];
+      if (!next) throw new Error('--only 뒤에 후보 ID를 쉼표로 이어 주세요');
+      only = next
+        .split(',')
+        .map(x => x.trim())
+        .filter(Boolean);
+      i += 1;
     }
   }
 
-  return { provider, repeat, estimateOnly, approvedCost, dateStr };
+  return { provider, repeat, estimateOnly, approvedCost, dateStr, ...(only ? { only } : {}) };
 }
 
 function configForCandidate(candidate: CandidateDef): Readonly<Config> {
@@ -312,6 +324,12 @@ export async function runEvaluation(
   config: CandidatesConfig = loadCandidatesConfig(),
   docs: readonly EvalDoc[] = loadDataset(),
 ): Promise<void> {
+  if (cli.only) {
+    const wanted = new Set(cli.only);
+    const unknown = [...wanted].filter(id => !config.candidates.some(c => c.id === id));
+    if (unknown.length > 0) throw new Error(`알 수 없는 후보 ID: ${unknown.join(', ')}`);
+    config = { ...config, candidates: config.candidates.filter(c => wanted.has(c.id)) };
+  }
   const estimate = estimateEvalCost(docs, config, cli.repeat);
 
   if (cli.estimateOnly) {
@@ -367,19 +385,23 @@ export async function runEvaluation(
   const rawContent = records.map(r => JSON.stringify(r)).join('\n') + '\n';
   fs.writeFileSync(rawPath, rawContent, 'utf8');
 
-  const judgeRes = writeJudgeBatchFile(records, docs, config, judgePath);
+  // 비교 판정(A/B/C)은 후보 3개일 때만 만든다. 생각 깊이 비교처럼 후보가 많으면 건너뛴다(비싼 생성이 끝난 뒤 멈추지 않게).
+  const judgeRes =
+    config.candidates.length === 3 ? writeJudgeBatchFile(records, docs, config, judgePath) : undefined;
   const reportRes = writeEvalReport({
     dateStr: cli.dateStr,
     records,
     docs,
     config,
     rawPath,
-    judgeBatchPath: judgeRes.outputPath,
+    ...(judgeRes ? { judgeBatchPath: judgeRes.outputPath } : {}),
   });
 
   console.log(`[eval] 원시 결과 저장: ${path.relative(REPO_ROOT, rawPath)} (${records.length}줄)`);
   console.log(
-    `[eval] 판정 묶음 저장: ${path.relative(REPO_ROOT, judgeRes.outputPath)} (${judgeRes.itemCount}줄, 전송 안 함)`,
+    judgeRes
+      ? `[eval] 판정 묶음 저장: ${path.relative(REPO_ROOT, judgeRes.outputPath)} (${judgeRes.itemCount}줄, 전송 안 함)`
+      : `[eval] 판정 묶음 건너뜀: 후보 ${config.candidates.length}개(비교 판정은 3개일 때만)`,
   );
   console.log(
     `[eval] 보고서 저장: ${reportRes.reportPaths.map(p => path.relative(REPO_ROOT, p)).join(', ')}`,

@@ -101,6 +101,11 @@ export const configDefaults = {
   AI_POLISH_TIMEOUT_SEC: 40,
   /** 버튼별 최대 출력 토큰(PLAN §8.3). 다듬은 글은 원문 토큰 × 1.6, 이 값이 상한. */
   AI_MAX_OUTPUT_TOKENS: { spell: 2000, feedback: 800, direction: 600, polishMax: 6000 },
+  /**
+   * 생각 깊이별로 출력 한도에 더하는 여유 토큰. 생각 토큰도 max_tokens 안에 들어가서, 보통·높음은 이게 없으면
+   * 답이 잘린다(2026-11-12 생각 깊이 평가). 끔·낮음은 0이라 기존 동작 그대로.
+   */
+  AI_THINKING_HEADROOM_TOKENS: { off: 0, low: 0, medium: 2000, high: 6000 },
 
   // AI 제공사·모델·생각 깊이 (PRD 6.4.1)
   AI_PROVIDER: 'anthropic',
@@ -217,6 +222,7 @@ export const configSchema = z
     AI_MAX_OUTPUT_TOKENS: z
       .object({ spell: positive, feedback: positive, direction: positive, polishMax: positive })
       .strict(),
+    AI_THINKING_HEADROOM_TOKENS: z.object({ off: count, low: count, medium: count, high: count }).strict(),
 
     // 'fake'는 시험용이다. 운영에서 쓰면 서버가 시작을 거부한다(apps/server/src/config.ts).
     AI_PROVIDER: z.enum(['anthropic', 'fake']),

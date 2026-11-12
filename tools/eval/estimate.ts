@@ -32,6 +32,13 @@ const TOKENS_PER_CHAR = 1.3;
 const STRUCTURED_SCHEMA_TOKENS = 120;
 /** `effort: "low"` 적응형 생각(adaptive thinking) 시 호출당 추가되는 출력 토큰 어림치. */
 const LOW_EFFORT_THINKING_TOKENS = 220;
+/** 생각 깊이별 호출당 생각 토큰 어림(2026-11-12 첫 평가의 낮음 실측을 기준으로 보통·높음은 넉넉히 잡음). */
+const THINKING_TOKENS_BY_EFFORT = {
+  off: 0,
+  low: LOW_EFFORT_THINKING_TOKENS,
+  medium: 800,
+  high: 2000,
+} as const;
 
 export const pricingSchema = z
   .object({
@@ -227,7 +234,7 @@ function estimateSingleCallTokens(
 ): { calls: number; inputTokens: number; outputTokens: number } {
   const input = buildAiInput(doc, button);
   const sysChars = [...systemPrompt(button)].length;
-  const thinkingTokens = effort === 'off' ? 0 : LOW_EFFORT_THINKING_TOKENS;
+  const thinkingTokens = THINKING_TOKENS_BY_EFFORT[effort];
 
   if (button === 'SPELL') {
     const chunks = chunkForSpell(input.text, defaultConfig.AI_SPELL_CHUNK_CHARS);

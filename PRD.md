@@ -1086,6 +1086,7 @@ docs/                   decisions.md PLAN.md USER_DECISIONS.md PRD_REVIEW.md pri
 | AI_MIN_CHARS | 기본 20, 시 10, 포스터·표어 4 |
 | AI_TIMEOUT_SEC / AI_POLISH_FIRST_BYTE_SEC / AI_POLISH_TIMEOUT_SEC | 20 / 20 / 40 |
 | AI_MAX_OUTPUT_TOKENS | 맞춤법 2000, 글벗 한마디 800, 다음 방향 600, 다듬은 글 상한 6000(원문 토큰의 1.6배) |
+| AI_THINKING_HEADROOM_TOKENS | 끔 0, 낮음 0, 보통 2000, 높음 6000 (생각 깊이별로 출력 한도에 더하는 여유. 생각 토큰도 한도 안에 들어감) |
 | AI_PROVIDER / MODEL_SPELL / MODEL_FEEDBACK / MODEL_DIRECTION / MODEL_POLISH / MODEL_FALLBACK | 6.4.1 |
 | AI_EFFORT_* (버튼별 생각 깊이) | 6.4.1 |
 | LARGE_DELETE_CHARS | 30 |
