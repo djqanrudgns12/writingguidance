@@ -303,6 +303,17 @@ case "$cmd" in
     done
     need_svc
     sdir="$(svc_scripts_dir "$cmd.sh")"
+    # 비밀값 입력 명령은 소유자가 직접 부르는 것이라, 배포된 릴리스(옛 판일 수 있음)가 아니라 저장소의 최신 스크립트를
+    # 서비스 계정 bootstrap에 복사해 쓴다(수업 시간이라 배포가 미뤄져도 새 비밀값 칸을 바로 쓸 수 있게, 2026-11-13).
+    case "$cmd" in
+      init-secrets|save-secret)
+        for sfile in env.sh "$cmd.sh"; do
+          as_svc sh -c 'umask 077; mkdir -p "$1"; cat > "$1/$2.tmp" && chmod 700 "$1/$2.tmp" && mv "$1/$2.tmp" "$1/$2"' \
+            sh "$we_home/bootstrap/scripts" "$sfile" < "$here/scripts/$sfile"
+        done
+        sdir="$we_home/bootstrap/scripts"
+        ;;
+    esac
     exec sh -c 'cd / && exec sudo -u "$0" -H sh "$@"' "$svc" "$sdir/$cmd.sh" "$@"
     ;;
   healthcheck)

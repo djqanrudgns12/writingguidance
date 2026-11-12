@@ -8,7 +8,7 @@ set -eu
 
 usage() {
   cat <<'EOF'
-사용법: sh ops/we.sh save-secret <llm-api-key|teacher-start-code>
+사용법: sh ops/we.sh save-secret <llm-api-key|teacher-start-code|stdict-api-key>
 
 사용자가 직접 입력한 비밀값을 화면에 표시하지 않고
 /Users/wesvc/writeessay-server/secrets/app.env(권한 600)에 저장합니다.
@@ -16,6 +16,7 @@ usage() {
 항목:
   llm-api-key          운영 서버용 ANTHROPIC_API_KEY (콘솔 월 한도 20달러 권장, 개발용 키와 분리)
   teacher-start-code   수업방 만들기용 TEACHER_START_CODE (정확히 숫자 8자리)
+  stdict-api-key       표준국어대사전 Open API 인증 키 STDICT_API_KEY (16진수 32자리, 맞춤법 등급 보정용·선택)
 
 옵션:
   --allow-skip         빈 줄(Enter) 입력 시 오류 대신 건너뜁니다(init-secrets 연동용).
@@ -36,7 +37,7 @@ while [ $# -gt 0 ]; do
       allow_skip=1
       shift
       ;;
-    llm-api-key|anthropic-api-key|teacher-start-code|start-code)
+    llm-api-key|anthropic-api-key|teacher-start-code|start-code|stdict-api-key)
       target="$1"
       shift
       ;;
@@ -63,6 +64,10 @@ case "$target" in
   teacher-start-code|start-code)
     env_key="TEACHER_START_CODE"
     hint="선생님 시작 코드(정확히 숫자 8자리, PRD 12.3 TEACHER_START_CODE_LENGTH=8)를 입력하세요."
+    ;;
+  stdict-api-key)
+    env_key="STDICT_API_KEY"
+    hint="표준국어대사전 Open API에서 발급받은 인증 키(16진수 32자리)를 붙여넣으세요."
     ;;
 esac
 
@@ -94,7 +99,10 @@ if [ -z "$value" ]; then
   we_die "빈 값은 저장할 수 없습니다"
 fi
 
-if [ "$env_key" = "TEACHER_START_CODE" ]; then
+if [ "$env_key" = "STDICT_API_KEY" ]; then
+  # 표준국어대사전 Open API 키는 16진수 32자리다(stdict.korean.go.kr 안내). 대소문자는 그대로 둔다.
+  printf '%s' "$value" | grep -Eq '^[0-9A-Fa-f]{32}$' || we_die "STDICT_API_KEY는 16진수 32자리여야 합니다"
+elif [ "$env_key" = "TEACHER_START_CODE" ]; then
   case "$value" in
     [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) ;;
     *) we_die "TEACHER_START_CODE는 숫자 8자리여야 합니다" ;;
