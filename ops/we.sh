@@ -315,7 +315,8 @@ case "$cmd" in
     done
     need_svc
     sdir="$(svc_scripts_dir healthcheck.mjs)"
-    exec sh -c 'cd / && exec sudo -u "$0" -H "$1" "$2" "$@"' "$svc" "$node_bin" "$sdir/healthcheck.mjs" "$@"
+    # sh -c 안의 "$@"는 이미 $1·$2를 담고 있어 따로 적으면 node 경로가 두 번 넘어간다(2026-11-12 첫 실행에서 발견).
+    exec sh -c 'cd / && exec sudo -u "$0" -H "$@"' "$svc" "$node_bin" "$sdir/healthcheck.mjs" "$@"
     ;;
   logs)
     log_name=""
