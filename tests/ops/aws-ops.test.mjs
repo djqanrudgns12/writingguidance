@@ -10,7 +10,10 @@ const distributionId = 'E3TFCRGRU1HG1Q';
 const aclName = 'CreatedByCloudFront-write-ssamuniverse';
 const aclId = '11111111-2222-3333-4444-555555555555';
 const aclArn = `arn:aws:wafv2:us-east-1:111111111111:global/webacl/${aclName}/${aclId}`;
-const functionArn = 'arn:aws:cloudfront::111111111111:function/we-viewer-request';
+// 2026-11-13부터 배포는 갤러리와 함께 쓰는 공용 입구다(ADR-060). 세 동작 모두 ssam-viewer-request가 연결돼 있다.
+const functionArn = 'arn:aws:cloudfront::111111111111:function/ssam-viewer-request';
+const writeOnlyFunctionArn = 'arn:aws:cloudfront::111111111111:function/we-viewer-request';
+const viewerRequest = arn => ({ Quantity: 1, Items: [{ EventType: 'viewer-request', FunctionARN: arn }] });
 const visibility = { SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: 'fixture' };
 
 function rateRule() {
@@ -47,23 +50,39 @@ function fixture(t, change = () => {}) {
     'synthetic-origin-header-for-ops-fixture-only',
   );
   const cfg = {
-    Aliases: { Quantity: 1, Items: ['write.ssamuniverse.com'] },
+    Aliases: { Quantity: 2, Items: ['write.ssamuniverse.com', 'gallery.ssamuniverse.com'] },
+    ViewerCertificate: {
+      ACMCertificateArn:
+        'arn:aws:acm:us-east-1:111111111111:certificate/0786fe27-9015-418e-9a3f-18521a1c288b',
+      SSLSupportMethod: 'sni-only',
+      MinimumProtocolVersion: 'TLSv1.2_2021',
+    },
     WebACLId: aclArn,
     HttpVersion: 'http2and3',
     IsIPV6Enabled: true,
     Origins: {
-      Quantity: 2,
+      Quantity: 3,
       Items: [
         { Id: 'unrelated', DomainName: 'unrelated.example.invalid' },
         { Id: 'write', DomainName: 'origin-write.ssamuniverse.com' },
+        {
+          Id: 'origin-gallery',
+          DomainName: 'origin-gallery.ssamuniverse.com',
+          CustomHeaders: {
+            Quantity: 1,
+            Items: [
+              {
+                HeaderName: 'x-gw-origin-auth',
+                HeaderValue: 'synthetic-gallery-header-for-ops-fixture-only',
+              },
+            ],
+          },
+        },
       ],
     },
     DefaultCacheBehavior: {
       TargetOriginId: 'write',
-      FunctionAssociations: {
-        Quantity: 1,
-        Items: [{ EventType: 'viewer-request', FunctionARN: functionArn }],
-      },
+      FunctionAssociations: viewerRequest(functionArn),
     },
     CacheBehaviors: {
       Quantity: 2,
@@ -71,6 +90,7 @@ function fixture(t, change = () => {}) {
         PathPattern,
         ResponseHeadersPolicyId: 'keep-response-policy',
         OriginRequestPolicyId: 'keep-origin-policy',
+        FunctionAssociations: viewerRequest(functionArn),
       })),
     },
   };
@@ -154,10 +174,10 @@ const output = data => console.log(typeof data === 'string' ? data : JSON.string
 if (state.fail === command) { console.error('fixture network failure'); process.exit(1); }
 switch (command) {
   case 'sts get-caller-identity': output({ Account: '111111111111' }); break;
-  case 'cloudfront list-functions': output(state.functionExists ? 'we-viewer-request' : 'None'); break;
   case 'cloudfront describe-function':
-    output(args.includes('--query') ? 'fn-etag' : { ETag: 'fn-etag', FunctionSummary: { FunctionMetadata: { FunctionARN: '${functionArn}' } } }); break;
-  case 'cloudfront publish-function': output('${functionArn}'); break;
+    if (!state.functionExists) { console.error('An error occurred (NoSuchFunctionExists) when calling the DescribeFunction operation'); process.exit(254); }
+    output({ ETag: 'fn-etag', FunctionSummary: { Name: value('--name'), FunctionMetadata: {
+      FunctionARN: 'arn:aws:cloudfront::111111111111:function/' + value('--name'), Stage: value('--stage') } } }); break;
   case 'cloudfront get-distribution-config': output({ ETag: 'dist-etag', DistributionConfig: state.cfg }); break;
   case 'cloudfront get-distribution': output(args.includes('--query') ? state.cfg.WebACLId || 'None' : { Distribution: { DistributionConfig: state.cfg } }); break;
   case 'cloudfront list-distributions-by-web-acl-id': output({ DistributionList: {
@@ -177,7 +197,6 @@ switch (command) {
   case 'sns list-topics': output({ Topics: state.topicExists ? [{ TopicArn: 'arn:aws:sns:us-east-1:111111111111:we-alerts' }] : [] }); break;
   case 'sns create-topic': output('arn:aws:sns:us-east-1:111111111111:we-alerts'); break;
   case 'sns list-subscriptions-by-topic': output({ Subscriptions: state.subscriptions }); break;
-  case 'cloudfront create-function': case 'cloudfront update-function': output({ ETag: 'updated-fn-etag' }); break;
   case 'cloudfront update-distribution':
   case 'iam create-user': case 'iam put-user-policy': case 'iam delete-access-key':
   case 'sns subscribe': case 'cloudwatch put-metric-alarm': break;
@@ -366,6 +385,76 @@ test('setup은 선택 ACL 설정·기존 override·정적 파일 정책을 보�
   assertNoReadsAfterMutation(commands);
 });
 
+test('setup --apply는 공용 입구(ssam-viewer-request·gallery 원본·대체 도메인·인증서)를 그대로 두고 함수 코드를 게시하지 않는다', t => {
+  const f = fixture(t);
+  const before = structuredClone(f.state.cfg);
+  ok(f.run(setup, ['ops@example.invalid', '--apply', '--skip-waf']));
+  const calls = f.calls();
+  // 함수 코드는 gallerywalk 저장소가 게시한다 — 글방 스크립트는 LIVE 판을 이름으로 조회만 한다.
+  assert.deepEqual(
+    calls.filter(x => /^cloudfront (create|update|publish|delete)-function$/.test(x.command)),
+    [],
+  );
+  const lookup = calls.filter(x => x.command === 'cloudfront describe-function');
+  assert.equal(lookup.length, 1);
+  assert.equal(lookup[0].args[lookup[0].args.indexOf('--name') + 1], 'ssam-viewer-request');
+  assert.equal(lookup[0].args[lookup[0].args.indexOf('--stage') + 1], 'LIVE');
+  const update = calls.find(x => x.command === 'cloudfront update-distribution');
+  assert.equal(update.args[update.args.indexOf('--if-match') + 1], 'dist-etag');
+  const cfg = update['--distribution-config'];
+  assert.deepEqual(cfg.DefaultCacheBehavior.FunctionAssociations, viewerRequest(functionArn));
+  assert.deepEqual(
+    cfg.CacheBehaviors.Items.map(b => [b.PathPattern, b.FunctionAssociations]),
+    [
+      ['/assets/*', viewerRequest(functionArn)],
+      ['/art/*', viewerRequest(functionArn)],
+    ],
+  );
+  assert.deepEqual(cfg.Aliases, before.Aliases);
+  assert.deepEqual(cfg.ViewerCertificate, before.ViewerCertificate);
+  assert.deepEqual(
+    cfg.Origins.Items.find(o => o.Id === 'origin-gallery'),
+    before.Origins.Items.find(o => o.Id === 'origin-gallery'),
+  );
+  assert.equal(cfg.Origins.Items.length, 3);
+  // 원본 비밀값 회전(runbook 3)에서 바뀌는 것은 글방 원본 머리뿐이다.
+  assert.deepEqual(
+    cfg.Origins.Items.find(o => o.Id === 'write').CustomHeaders.Items.map(h => h.HeaderName),
+    ['x-we-origin-auth'],
+  );
+});
+
+for (const [label, change] of [
+  [
+    '기본 동작에 we-viewer-request(되돌린 상태)',
+    s => {
+      s.cfg.DefaultCacheBehavior.FunctionAssociations = viewerRequest(writeOnlyFunctionArn);
+    },
+  ],
+  [
+    '/art/* 동작에 다른 함수',
+    s => {
+      s.cfg.CacheBehaviors.Items[1].FunctionAssociations = viewerRequest(writeOnlyFunctionArn);
+    },
+  ],
+  [
+    'LIVE 공용 함수 없음',
+    s => {
+      s.functionExists = false;
+    },
+  ],
+]) {
+  for (const mode of ['--dry-run', '--apply']) {
+    test(`setup ${mode}: ${label}이면 함수를 바꾸지 않고 변경 전에 중단한다`, t => {
+      const f = fixture(t, change);
+      const result = f.run(setup, ['ops@example.invalid', mode]);
+      assert.notEqual(result.status, 0, result.stdout);
+      assert.match(result.stderr, /공용 입구/);
+      assert.deepEqual(f.mutations(), []);
+    });
+  }
+}
+
 for (const script of [setup, emergency]) {
   for (const [label, change] of [
     [
@@ -523,27 +612,24 @@ test('emergency dry-run은 변경 호출을 하지 않고 명시 ACL 불일치�
   assert.deepEqual(f.mutations(), []);
 });
 
-test('처음 만드는 함수·IAM 사용자·SNS도 사전 조회 후 적용하고 실제 계정 ARN을 쓴다', t => {
+test('함수가 빠진 동작에는 공용 함수를 연결하고, 처음 만드는 IAM 사용자·SNS도 사전 조회 후 실제 계정 ARN을 쓴다', t => {
   const f = fixture(t, s => {
-    s.functionExists = false;
+    delete s.cfg.DefaultCacheBehavior.FunctionAssociations;
+    s.cfg.CacheBehaviors = { Quantity: 0, Items: [] };
     s.userExists = false;
     s.topicExists = false;
     s.acl.Rules = [];
   });
   ok(f.run(setup, ['ops@example.invalid', '--apply']));
   const commands = f.calls().map(x => x.command);
-  for (const command of [
-    'cloudfront create-function',
-    'iam create-user',
-    'iam create-access-key',
-    'sns create-topic',
-    'sns subscribe',
-  ]) {
+  for (const command of ['iam create-user', 'iam create-access-key', 'sns create-topic', 'sns subscribe']) {
     assert.equal(commands.filter(x => x === command).length, 1, command);
   }
   assertNoReadsAfterMutation(commands);
   const cfg = f.calls().find(x => x.command === 'cloudfront update-distribution')['--distribution-config'];
-  assert.equal(cfg.DefaultCacheBehavior.FunctionAssociations.Items[0].FunctionARN, functionArn);
+  assert.deepEqual(cfg.DefaultCacheBehavior.FunctionAssociations, viewerRequest(functionArn));
+  for (const behavior of cfg.CacheBehaviors.Items)
+    assert.deepEqual(behavior.FunctionAssociations, viewerRequest(functionArn), behavior.PathPattern);
   const payload = f.calls().find(x => x.command === 'wafv2 update-web-acl')['--cli-input-json'];
   assert.equal(payload.Rules.length, 2);
 });

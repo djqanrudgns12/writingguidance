@@ -180,6 +180,11 @@ sh ops/we.sh install-daemons tunnel
 
 세 번째 무료 요금제 배포 `E3TFCRGRU1HG1Q`(`d2gtrsnqpjb6in.cloudfront.net`), us-east-1 ACM 인증서(`c7d36515-8ea8-42c4-a2af-673387eaef14`), 대체 도메인 `write.ssamuniverse.com`, 기본 캐시 동작(`CachingDisabled` + `AllViewerExceptHostHeader`)은 이미 만들어져 있다(`docs/PLAN.md` §15.6-1). 여기서는 남은 CloudFront·WAF 항목과 감시 자원을 CLI로 반영하고 공개 CNAME을 연다.
 
+> **2026-11-13부터 이 배포는 "쌤유 앱 공용 입구"다(ADR-060, gallerywalk ADR-061).** 갤러리(`gallery.ssamuniverse.com`)가 같은 배포를 쓴다. 대체 도메인 `write`+`gallery`, 인증서 `0786fe27-9015-418e-9a3f-18521a1c288b`(write+gallery), 원본 `origin-write`·`origin-gallery`(머리 `x-gw-origin-auth`), 세 동작(`*`·`/assets/*`·`/art/*`)의 viewer-request 함수는 **`ssam-viewer-request`**(코드 원본: gallerywalk 저장소 `ops/cloudfront/viewer-request.js`)다.
+> - `setup-ops.sh`는 함수 코드를 만들거나 게시하지 않는다. LIVE `ssam-viewer-request`를 찾아 연결만 하고, 대체 도메인·인증서·`origin-gallery`는 건드리지 않는다. 함수가 없거나 동작에 다른 함수(예: `we-viewer-request`)가 연결돼 있으면 **아무것도 바꾸지 않고 멈춘다**.
+> - 글방 저장소의 `ops/cloudfront/viewer-request.js`(`we-viewer-request`)는 되돌리기용 보관본이다. `write` 외 주소를 308로 보내므로 세 동작에 다시 연결하면 갤러리가 끊긴다. 콘솔에서 손으로 바꾸지 않는다.
+> - 글방 요청의 머리(`x-we-client-ip`·`x-we-forwarded-host`)를 바꾸려면 gallerywalk 저장소의 공용 함수를 고쳐 게시한다. 배포의 WAF 규칙·IP당 한도·5xx 알람도 두 앱이 함께 쓴다.
+
 ```bash
 # 1) 64자 원본 잠금 비밀값 생성 및 클립보드 복사 (화면에 값 미출력)
 sh ops/we.sh origin-secret
@@ -189,7 +194,7 @@ aws login --profile we
 sh ops/aws/setup-ops.sh <알림받을_이메일> E3TFCRGRU1HG1Q --dry-run
 
 # 3) 출력 내역을 확인한 뒤 --apply로 실제 반영
-#    (we-viewer-request 함수, x-we-origin-auth 머리, HTTP/2+3, IPv6, /assets/* · /art/* 캐시,
+#    (공용 입구 함수 ssam-viewer-request 연결 확인, x-we-origin-auth 머리, HTTP/2+3, IPv6, /assets/* · /art/* 캐시,
 #     WAF CommonRuleSet 4개 예외 + IP당 5분 20,000건 한도, SNS·IAM·CloudWatch 알람 일괄 구성)
 sh ops/aws/setup-ops.sh <알림받을_이메일> E3TFCRGRU1HG1Q --apply
 ```
@@ -593,9 +598,10 @@ sh ops/we.sh logs tunnel -f
    (http.host eq "origin-write.ssamuniverse.com" and not (any(http.request.headers["x-we-origin-auth"][*] eq "<이전값>") or any(http.request.headers["x-we-origin-auth"][*] eq "<새값>")))
    ```
    이전 값을 다시 복사해야 하면 `tr -d '\n' < ~/.writeessay-admin/cloudfront-origin-secret.prev | pbcopy`, 새 값은 `sh ops/we.sh origin-secret`으로 복사한다. 회전 명령을 다시 실행하지 않는다.
-3. 양쪽 값 허용 후 `sh ops/we.sh healthcheck`로 현재 경로가 정상임을 확인한다. 이어서 CloudFront 원본 머리를 새 값으로 갱신하고 전파 완료까지 기다린다(`setup-ops.sh`는 현재 값 파일을 자동으로 읽음):
+3. 양쪽 값 허용 후 `sh ops/we.sh healthcheck`로 현재 경로가 정상임을 확인한다. 이어서 CloudFront 원본 머리를 새 값으로 갱신하고 전파 완료까지 기다린다(`setup-ops.sh`는 현재 값 파일을 자동으로 읽음). 먼저 `--dry-run`으로 "배포 변경 항목 요약"이 `x-we-origin-auth 값 갱신`뿐인지, 공용 입구 함수 확인에서 멈추지 않는지 본다. 이 배포는 갤러리와 함께 쓰므로 갱신이 끝난 뒤 `curl -fsSI https://gallery.ssamuniverse.com/api/health`도 `200`인지 확인한다:
    ```bash
    aws login --profile we
+   sh ops/aws/setup-ops.sh <알림받을_이메일> E3TFCRGRU1HG1Q --dry-run --skip-waf
    sh ops/aws/setup-ops.sh <알림받을_이메일> E3TFCRGRU1HG1Q --apply --skip-waf
    aws cloudfront wait distribution-deployed --profile we --id E3TFCRGRU1HG1Q
    ```

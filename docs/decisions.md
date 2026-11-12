@@ -586,3 +586,23 @@
 - **자원 보호**: 서비스 계정은 소유자 홈(권한 700)의 `resource-guard`를 읽을 수 없다. 수동 배포(`we.sh deploy`)가 그 사본을 `/Users/wesvc/writeessay-server/bin/resource-guard`에 두고, 자동 배포 빌드는 그 사본으로 `--profile build` 메모리 입장 검사를 거친다. 사본은 계정별 잠금이라 소유자 쪽 고부하 작업과 줄을 서지는 않는다(가드 자체를 계정 공용으로 바꾸는 것은 이 저장소 밖 일). 사본이 없거나 75를 돌려주면 빌드를 미루고 기다린다. 수업 시간 밖·연결 0일 때만 빌드한다. 맥미니에서 시험은 다시 돌리지 않는다(GitHub에서 끝남). Codex 구현(P6-autodeploy, 운영 규칙 시험 32개 `tests/ops/autodeploy.test.mjs`는 GitHub `verify`에도 넣었다).
 - **첫 배포(2026-11-12 18:5x, 사용자 지시로 resource-guard 한 번 우회)**: 다른 세션의 아바타 시험 2개가 돌아 가드가 막자, 사용자가 "자원량과 상관없이 실행"을 지시해 `RESOURCE_GUARD_ACTIVE=1 nice -n 10 sh ops/we.sh deploy --init`으로 돌렸다(아바타 작업은 건드리지 않음). 실제로 돌려 보고서야 드러난 운영 결함 2건을 고쳤다: `git bundle verify`가 저장소 밖에서 늘 실패(→ repo-cache 안에서 확인, 서버 루트에서 시작), 사전 검사가 서버 시작 기록을 `code` 필드로 기다려 늘 15초 초과(→ `event`). 첫 릴리스 `releases/62d12f4987d8`, 스키마 0001.
 - **외부 공개(2026-11-12 저녁)**: 안내서 5~8단계를 사용자와 함께 실행했다(sudo·Cloudflare·AWS 로그인·대시보드는 사용자, Cloudflare 규칙은 사용자의 Aside, 비밀값은 AI에 넘기지 않음). `setup-ops.sh`는 첫 적용 전에 독립 검토(Claude 서브에이전트) → Codex 수정을 거쳤고, 실제 적용에서 결함 2건(WAF 빈 Description 거부, 연결된 함수 게시가 배포 ETag를 바꿈)을 더 고쳤다. 터널 데몬 등록 뒤 공개 설정 전의 자동 배포가 상태 확인 실패로 되돌려지는 순서 문제를 겪어 안내서에 일시정지 순서를 적었다.
+
+## ADR-060 · 글방 CloudFront 배포를 갤러리와 공용 입구로 (2026-11-13) — 같은 날 AI 하네스 ADR-059와 번호가 겹쳐 060
+
+- **사실**: 무료 CloudFront 요금제 3자리가 다 차서, 사용자가 글방 배포 `E3TFCRGRU1HG1Q`를 갤러리(`gallery.ssamuniverse.com`)와 함께 쓰기로 했다(gallerywalk ADR-002 1안·ADR-061). 갤러리 쪽 작업으로 이 배포에 원본 `origin-gallery`(머리 `x-gw-origin-auth`), 대체 도메인 `gallery`, `write`+`gallery` 인증서(`0786fe27-9015-418e-9a3f-18521a1c288b`)가 더해졌고, 세 동작(`*`·`/assets/*`·`/art/*`)의 viewer-request 함수가 `ssam-viewer-request`로 바뀌었다. 이 함수는 주소별로 원본을 고르고, `write` 요청에는 `we-viewer-request`와 같은 `x-we-client-ip`·`x-we-forwarded-host`를 넣는다. 코드 원본은 gallerywalk 저장소 `ops/cloudfront/viewer-request.js`다. `we-viewer-request`는 지우지 않고 되돌리기용으로 남겼다.
+- **문제**: `ops/aws/setup-ops.sh --apply`(원본 비밀값 회전에 씀)가 함수 `we-viewer-request`를 게시하고 세 동작에 다시 연결했다. 그 함수는 `write` 외 주소를 308로 보내므로, 그대로 돌리면 갤러리가 끊긴다.
+- **결정**: `setup-ops.sh`는 viewer-request 함수의 **코드를 만들거나 게시하지 않는다**. LIVE `ssam-viewer-request`를 이름으로 찾아 연결만 하고, 아래 경우에는 바꾸지 않고 멈춘다.
+  - 함수가 없을 때.
+  - 동작에 다른 함수가 연결돼 있을 때.
+  - 대체 도메인·인증서·WAF 연결·글방 외 원본이 계산 중에 바뀌었을 때(보존 검사).
+  - 함수가 빠진 동작에만 공용 함수를 새로 연결한다.
+- **이유**
+  - 함수 이름만 바꾸고 다른 함수를 덮어쓰게 두면, 사람이 일부러 `we-viewer-request`로 되돌려 둔 상태(갤러리를 떼는 중 등)를 원본 비밀값 회전 하나가 몰래 다시 바꾼다. 그래서 "멈추기"를 함께 넣었다.
+  - "다른 함수면 멈추기"만 넣으면 스크립트가 계속 글방 함수 코드를 게시한다. 공용 함수 코드가 두 저장소에 흩어지고, 연결이 다시 바뀔 수도 있다. 그래서 이름도 공용 함수로 바꿨다.
+  - 함수를 게시하지 않으니 게시가 배포 ETag를 바꾸던 문제(ADR-058 외부 공개)도 없어졌다. 계산할 때 읽은 ETag로 갱신하고, 그사이 바뀌었으면 CloudFront가 거절한다.
+- **영향**
+  - 글방 저장소의 `ops/cloudfront/viewer-request.js`는 운영에 반영되지 않는 보관본이다.
+  - 글방 요청 머리를 바꾸려면 gallerywalk 쪽 공용 함수를 고쳐 게시한다.
+  - WAF 규칙(IP당 5분 20,000건 포함)과 `we-cloudfront-5xx` 알람(배포 단위)은 두 앱이 함께 쓴다.
+  - 시험: `tests/ops/aws-ops.test.mjs`가 공용 입구 고정본으로 바뀌었다(함수 게시 호출 없음, 세 동작 `ssam-viewer-request`, 원본·대체 도메인·인증서 그대로, 다른 함수·함수 없음이면 dry-run·apply 모두 변경 전 중단).
+- **되돌리기**: 갤러리를 이 배포에서 떼면 `we-viewer-request`를 콘솔에서 세 동작에 다시 연결한다. 그 뒤 `setup-ops.sh`의 `shared_fn`을 `we-viewer-request`로 바꾼다. 함수 게시 단계는 git 기록(이 ADR 앞 커밋)에서 되살린다.

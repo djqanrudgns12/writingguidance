@@ -2,9 +2,13 @@
 # 쌤유 글방 AWS 앞단(CloudFront·WAF 남은 항목) 및 감시(IAM·SNS·CloudWatch) 설정 스크립트 — 기본값은 --dry-run(미리보기)이다.
 #
 # 왜 필요한가:
-#   - 이미 생성된 세 번째 무료 배포(E3TFCRGRU1HG1Q, PLAN §15.6-1)에 아직 빠진 설정(viewer-request 함수, 원본 비밀 머리
+#   - 이미 생성된 세 번째 무료 배포(E3TFCRGRU1HG1Q, PLAN §15.6-1)에 아직 빠진 설정(viewer-request 함수 연결, 원본 비밀 머리
 #     x-we-origin-auth, /assets/* · /art/* 캐시 동작, HTTP/3·IPv6, WAF 본문 크기 예외·IP당 5분 20,000건 한도)과
 #     최소 권한 감시(IAM we-macmini, SNS we-alerts, 알람 we-heartbeat-missing · we-cloudfront-5xx)를 AWS CLI로 맞춘다.
+#   - 2026-11-13부터 이 배포는 갤러리(gallery.ssamuniverse.com)와 함께 쓰는 "쌤유 앱 공용 입구"다(ADR-060, gallerywalk ADR-061).
+#     세 동작의 함수는 공용 함수 ssam-viewer-request이고 그 코드는 gallerywalk 저장소 ops/cloudfront/viewer-request.js가 원본이다.
+#     그래서 이 스크립트는 함수 코드를 만들거나 게시하지 않고, LIVE ssam-viewer-request를 연결만 한다. 다른 함수가 연결돼 있으면
+#     (되돌리기 중일 수 있으므로) 바꾸지 않고 멈춘다. 대체 도메인·인증서·글방 외 원본(origin-gallery)은 건드리지 않는다.
 #   - PRD F-24 무백업 원칙에 따라 S3 백업 버킷·백업 암호화 키·백업 알람은 만들지 않는다(PLAN §15.1).
 # 안전장치:
 #   - 실수로 운영 설정을 바꾸지 않도록 기본 모드를 --dry-run으로 두고, --apply를 명시했을 때만 변경 API를 호출한다.
@@ -26,7 +30,7 @@ usage() {
 모드 옵션:
   --dry-run           조회·검증만 수행하고 변경 API는 호출하지 않습니다 (기본값).
   --apply             검증한 CloudFront·WAF·SNS·IAM·CloudWatch 설정을 실제로 반영합니다.
-  --skip-cloudfront   CloudFront 함수·배포 수정 단계를 건너뜁니다(콘솔에서 수동 반영한 경우).
+  --skip-cloudfront   CloudFront 배포 수정 단계를 건너뜁니다(콘솔에서 수동 반영한 경우).
   --skip-waf          WAF 웹 ACL 수정 단계를 건너뜁니다(콘솔에서 수동 반영한 경우).
   -h, --help          이 도움말을 보여 줍니다.
 EOF
@@ -95,9 +99,9 @@ esac
 
 here="$(cd "$(dirname "$0")" && pwd -P)"
 ops_root="$(cd "$here/.." && pwd -P)"
-fn_file="$ops_root/cloudfront/viewer-request.js"
 overrides_file="$ops_root/cloudfront/common-rule-overrides.json"
-[ -f "$fn_file" ] || { echo "ERROR: 함수 파일이 없습니다: $fn_file" >&2; exit 1; }
+# 공용 입구 함수 이름. 코드는 gallerywalk 저장소가 게시하므로 여기서는 이름으로 LIVE 판을 찾아 연결만 한다.
+shared_fn="ssam-viewer-request"
 [ -f "$overrides_file" ] || { echo "ERROR: WAF 예외 파일이 없습니다: $overrides_file" >&2; exit 1; }
 
 export AWS_PROFILE="${AWS_PROFILE:-we}"
@@ -183,17 +187,20 @@ PY
 web_acl_arn="$(cat "$tmp/web-acl-arn")"
 if [ "$skip_cf" = "0" ]; then
   echo
-  echo "== 1. CloudFront 함수 we-viewer-request"
-  existing_fn="$(aws cloudfront list-functions --query "FunctionList.Items[?Name=='we-viewer-request'] | [0].Name" --output text)"
-  if [ "$existing_fn" = "we-viewer-request" ]; then
-    aws cloudfront describe-function --name we-viewer-request --stage DEVELOPMENT --output json > "$tmp/function.json"
-    fn_arn="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["FunctionSummary"]["FunctionMetadata"]["FunctionARN"])' "$tmp/function.json")"
-    dev_etag="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ETag"])' "$tmp/function.json")"
-    echo "기존 함수 we-viewer-request 갱신 및 LIVE 게시 예정 ($fn_file)"
-  else
-    fn_arn="$(python3 -c 'import json,sys; print("arn:aws:cloudfront::" + json.load(open(sys.argv[1]))["Account"] + ":function/we-viewer-request")' "$tmp/identity.json")"
-    echo "새 함수 we-viewer-request 생성(cloudfront-js-2.0) 및 LIVE 게시 예정 ($fn_file)"
+  echo "== 1. 공용 입구 함수 $shared_fn (LIVE, 연결만 — 코드는 gallerywalk 저장소가 게시)"
+  if ! aws cloudfront describe-function --name "$shared_fn" --stage LIVE --output json > "$tmp/function.json" 2> "$tmp/function-error"; then
+    cat "$tmp/function-error" >&2
+    if grep -q 'NoSuchFunctionExists' "$tmp/function-error"; then
+      echo "ERROR: LIVE 함수 $shared_fn 이 없습니다. 이 배포는 갤러리와 함께 쓰는 공용 입구라 we-viewer-request로 바꾸면 gallery.ssamuniverse.com이 끊깁니다. gallerywalk 저장소에서 함수를 게시한 뒤 다시 실행하세요" >&2
+    fi
+    exit 1
   fi
+  fn_arn="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["FunctionSummary"]["FunctionMetadata"]["FunctionARN"])' "$tmp/function.json")"
+  case "$fn_arn" in
+    arn:aws:cloudfront::*:function/"$shared_fn") ;;
+    *) echo "ERROR: $shared_fn 조회 결과의 ARN이 예상과 다릅니다: $fn_arn" >&2; exit 1 ;;
+  esac
+  echo "연결할 함수: $fn_arn (코드는 바꾸지 않음)"
 
   echo
   echo "== 2. CloudFront 배포 $dist_id 설정 보강"
@@ -204,6 +211,9 @@ import sys
 raw_path, secret_path, fn_arn, out_path, etag_path, acl_arn_path = sys.argv[1:7]
 with open(raw_path, encoding="utf-8") as fh:
     raw = json.load(fh)
+with open(raw_path, encoding="utf-8") as fh:
+    # 공용 입구 보존 검사용 원본(cfg는 아래에서 그 자리에서 고친다)
+    before = json.load(fh)["DistributionConfig"]
 with open(secret_path, encoding="utf-8") as fh:
     secret = fh.read().strip()
 
@@ -244,21 +254,30 @@ if not found_hdr:
     ch_items.append({"HeaderName": "x-we-origin-auth", "HeaderValue": secret})
 origin["CustomHeaders"] = {"Quantity": len(ch_items), "Items": ch_items}
 
-def function_associations(behavior):
-    items = [a for a in behavior.get("FunctionAssociations", {}).get("Items", [])
-             if a.get("EventType") != "viewer-request"]
-    items.append({"FunctionARN": fn_arn, "EventType": "viewer-request"})
-    return {"Quantity": len(items), "Items": items}
+def function_associations(behavior, label):
+    # 공용 입구(ADR-060): viewer-request는 ssam-viewer-request만 연결한다. 비어 있으면 연결하고,
+    # 다른 함수(we-viewer-request로 되돌린 상태 등)가 있으면 사람이 정한 상태일 수 있으므로 덮어쓰지 않고 멈춘다.
+    items = behavior.get("FunctionAssociations", {}).get("Items", [])
+    current = [a for a in items if a.get("EventType") == "viewer-request"]
+    for a in current:
+        if a.get("FunctionARN") != fn_arn:
+            sys.exit(
+                f"ERROR: {label} 동작의 viewer-request 함수가 {a.get('FunctionARN')} 입니다. "
+                f"공용 입구 함수({fn_arn.rsplit('/', 1)[-1]})가 아니라 바꾸지 않고 멈춥니다 — "
+                "되돌리기 중인지 확인하고, 공용 입구로 돌아온 뒤 다시 실행하세요(--skip-cloudfront로 이 단계만 건너뛸 수 있음)"
+            )
+    if not current:
+        changes.append(f"{label} viewer-request 함수 연결({fn_arn.rsplit('/', 1)[-1]})")
+    others = [a for a in items if a.get("EventType") != "viewer-request"]
+    others.append({"FunctionARN": fn_arn, "EventType": "viewer-request"})
+    return {"Quantity": len(others), "Items": others}
 
 default_cb = cfg["DefaultCacheBehavior"]
 default_cb["ViewerProtocolPolicy"] = "redirect-to-https"
 default_cb["CachePolicyId"] = default_cb.get("CachePolicyId") or CACHING_DISABLED
 default_cb["OriginRequestPolicyId"] = default_cb.get("OriginRequestPolicyId") or ALL_VIEWER_EXCEPT_HOST
 default_cb.pop("ForwardedValues", None)
-cur_fn = default_cb.get("FunctionAssociations", {}).get("Items", [])
-if not any(x.get("EventType") == "viewer-request" and x.get("FunctionARN") == fn_arn for x in cur_fn):
-    changes.append("DefaultCacheBehavior(*) viewer-request 함수 연결")
-default_cb["FunctionAssociations"] = function_associations(default_cb)
+default_cb["FunctionAssociations"] = function_associations(default_cb, "DefaultCacheBehavior(*)")
 
 cb_list = list(cfg.get("CacheBehaviors", {}).get("Items", []))
 by_pattern = {b["PathPattern"]: b for b in cb_list}
@@ -279,7 +298,7 @@ for pattern in ("/assets/*", "/art/*"):
         "SmoothStreaming": False,
         "Compress": True,
         "LambdaFunctionAssociations": {"Quantity": 0},
-        "FunctionAssociations": function_associations(entry),
+        "FunctionAssociations": function_associations(entry, f"CacheBehavior({pattern})"),
         "FieldLevelEncryptionId": "",
         "CachePolicyId": CACHING_OPTIMIZED,
     })
@@ -294,6 +313,15 @@ for pattern in ("/assets/*", "/art/*"):
         cb_list[idx] = entry
 
 cfg["CacheBehaviors"] = {"Quantity": len(cb_list), "Items": cb_list}
+
+# 공용 입구 보존: 대체 도메인·인증서·글방 외 원본(origin-gallery와 그 비밀 머리)·WAF 연결은 갤러리 몫이라 그대로여야 한다.
+for key in ("Aliases", "ViewerCertificate", "WebACLId"):
+    if cfg.get(key) != before.get(key):
+        sys.exit(f"ERROR: 내부 오류 — {key}가 바뀌었습니다. 공용 입구 설정을 지키려고 멈춥니다")
+def other_origins(c):
+    return [o for o in c.get("Origins", {}).get("Items", []) if o.get("Id") != origin_id]
+if other_origins(cfg) != other_origins(before):
+    sys.exit("ERROR: 내부 오류 — 글방 외 원본이 바뀌었습니다. 공용 입구 설정을 지키려고 멈춥니다")
 
 with open(out_path, "w", encoding="utf-8") as fh:
     json.dump(cfg, fh)
@@ -532,34 +560,9 @@ fi
 
 # ── 모든 원격 조회·구성 계산·사전 검증이 끝난 뒤에만 변경한다.
 if [ "$skip_cf" = "0" ]; then
-  fn_cfg='{"Comment":"writeessay canonical host + x-we-client-ip","Runtime":"cloudfront-js-2.0"}'
-  if [ "$existing_fn" = "we-viewer-request" ]; then
-    aws cloudfront update-function --name we-viewer-request --if-match "$dev_etag" \
-      --function-config "$fn_cfg" --function-code "fileb://$fn_file" --output json > "$tmp/function-updated.json"
-  else
-    aws cloudfront create-function --name we-viewer-request \
-      --function-config "$fn_cfg" --function-code "fileb://$fn_file" --output json > "$tmp/function-updated.json"
-  fi
-  pub_etag="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ETag"])' "$tmp/function-updated.json")"
-  aws cloudfront publish-function --name we-viewer-request --if-match "$pub_etag" >/dev/null
-  echo "함수 LIVE 게시 완료: $fn_arn"
   if [ "$(cat "$tmp/dist-next.json.changed")" = "1" ]; then
-    # 연결된 함수를 게시하면 배포 ETag가 바뀐다(2026-11-12 두 번째 --apply의 PreconditionFailed).
-    # 게시 뒤 ETag를 다시 읽고, 설정 자체는 계산할 때와 같은지 확인한 뒤에만 갱신한다.
-    aws cloudfront get-distribution-config --id "$dist_id" --output json > "$tmp/dist-fresh.json"
-    python3 - "$tmp/dist-raw.json" "$tmp/dist-fresh.json" "$tmp/dist-etag" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], encoding="utf-8") as fh:
-    before = json.load(fh)["DistributionConfig"]
-with open(sys.argv[2], encoding="utf-8") as fh:
-    fresh = json.load(fh)
-if fresh["DistributionConfig"] != before:
-    sys.exit("ERROR: 계산 뒤 배포 설정이 바뀌었습니다(다른 변경 진행 중?) — 다시 dry-run부터 실행하세요")
-with open(sys.argv[3], "w", encoding="utf-8") as fh:
-    fh.write(fresh["ETag"])
-PY
+    # 함수는 게시하지 않으므로(공용 입구 함수는 gallerywalk 몫) 계산할 때 읽은 ETag를 그대로 쓴다.
+    # 그사이 다른 변경이 있었다면 CloudFront가 PreconditionFailed로 거절한다.
     aws cloudfront update-distribution --id "$dist_id" --if-match "$(cat "$tmp/dist-etag")" \
       --distribution-config "file://$tmp/dist-next.json" >/dev/null
     echo "CloudFront 배포 갱신 요청 완료 ($dist_id)"

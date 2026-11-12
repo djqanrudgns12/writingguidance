@@ -1641,7 +1641,7 @@ cwd: /Users/bodyking/Desktop/Architecture/writeessay
 | `launchd/com.ssamwrite.tunnel.plist` | cloudflared `--metrics 127.0.0.1:20242`, `ProcessType Interactive`, `KeepAlive`(공개 끊기 스위치 파일) |
 | `launchd/com.ssamwrite.watch.plist` | `StartInterval 300`, `heartbeat.sh` |
 | `cloudflared/config.template.yml` | `origin-write.ssamuniverse.com` → `http://127.0.0.1:4460`, `httpHostHeader: write.ssamuniverse.com`, `^/internal/` → 404, 마지막 404 |
-| `cloudfront/viewer-request.js` | `write.ssamuniverse.com` 외 308, `x-we-client-ip` 덮어쓰기 |
+| `cloudfront/viewer-request.js` | `write.ssamuniverse.com` 외 308, `x-we-client-ip` 덮어쓰기. **2026-11-13부터 운영에는 공용 입구 함수 `ssam-viewer-request`(gallerywalk 저장소가 원본)가 연결돼 있고 이 파일은 되돌리기용 보관본(ADR-060)** |
 | `cloudfront/common-rule-overrides.json` | 4개 규칙 + 본문 크기 예외(AI 경로) |
 | `cloudfront/emergency.sh` | WAF `we-edge` 공격 대응 모드 |
 | `scripts/env.sh` | 경로·포트·잠금·알림·수업 시간 판정(Asia/Seoul 월~금 08:00~15:59) |
