@@ -242,6 +242,22 @@ const setup = 'ops/aws/setup-ops.sh';
 const emergency = 'ops/cloudfront/emergency.sh';
 const ok = result => assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 
+/**
+ * 변경을 시작한 뒤에는 조회하지 않는다. 예외 하나: 연결된 함수를 게시하면 배포 ETag가 바뀌므로
+ * 배포 갱신 바로 앞에서 배포 설정을 다시 읽는 것(실제 AWS, 2026-11-12)만 허용한다.
+ */
+function assertNoReadsAfterMutation(commands) {
+  const firstMutation = commands.findIndex(x => / (create-|update-|publish-|put-|subscribe)/.test(x));
+  const after = commands.slice(firstMutation);
+  after.forEach((x, i) => {
+    if (!/ (get-|list-|describe-)/.test(x)) return;
+    const refresh =
+      /cloudfront get-distribution-config/.test(x) &&
+      /cloudfront update-distribution/.test(after[i + 1] ?? '');
+    assert.equal(refresh, true, `변경 뒤 조회: ${x}`);
+  });
+}
+
 test('setup dry-run은 기존 실제 함수 ARN으로 비교하고 변경 호출과 로컬 저장을 하지 않는다', t => {
   const f = fixture(t);
   const result = f.run(setup, ['ops@example.invalid']);
@@ -347,11 +363,7 @@ test('setup은 선택 ACL 설정·기존 override·정적 파일 정책을 보�
     /^\[default\]\naws_access_key_id = FIXTUREKEY00000000000\n/,
   );
   const commands = f.calls().map(x => x.command);
-  const firstMutation = commands.findIndex(x => / (create-|update-|publish-|put-|subscribe)/.test(x));
-  assert.equal(
-    commands.slice(firstMutation).some(x => / (get-|list-|describe-)/.test(x)),
-    false,
-  );
+  assertNoReadsAfterMutation(commands);
 });
 
 for (const script of [setup, emergency]) {
@@ -529,11 +541,7 @@ test('처음 만드는 함수·IAM 사용자·SNS도 사전 조회 후 적용하
   ]) {
     assert.equal(commands.filter(x => x === command).length, 1, command);
   }
-  const firstMutation = commands.findIndex(x => / (create-|update-|publish-|put-|subscribe)/.test(x));
-  assert.equal(
-    commands.slice(firstMutation).some(x => / (get-|list-|describe-)/.test(x)),
-    false,
-  );
+  assertNoReadsAfterMutation(commands);
   const cfg = f.calls().find(x => x.command === 'cloudfront update-distribution')['--distribution-config'];
   assert.equal(cfg.DefaultCacheBehavior.FunctionAssociations.Items[0].FunctionARN, functionArn);
   const payload = f.calls().find(x => x.command === 'wafv2 update-web-acl')['--cli-input-json'];

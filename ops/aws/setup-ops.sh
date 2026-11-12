@@ -301,6 +301,9 @@ with open(etag_path, "w", encoding="utf-8") as fh:
     fh.write(etag)
 with open(acl_arn_path, "w", encoding="utf-8") as fh:
     fh.write(cfg.get("WebACLId") or "")
+# 바꿀 것이 없으면 배포 갱신을 부르지 않는다(apply 단계가 이 표시를 본다).
+with open(out_path + ".changed", "w", encoding="utf-8") as fh:
+    fh.write("1" if changes else "0")
 
 print("배포 변경 항목 요약:", ", ".join(changes) if changes else "변경 필요 없음(이미 일치)")
 PY
@@ -540,9 +543,29 @@ if [ "$skip_cf" = "0" ]; then
   pub_etag="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ETag"])' "$tmp/function-updated.json")"
   aws cloudfront publish-function --name we-viewer-request --if-match "$pub_etag" >/dev/null
   echo "함수 LIVE 게시 완료: $fn_arn"
-  aws cloudfront update-distribution --id "$dist_id" --if-match "$(cat "$tmp/dist-etag")" \
-    --distribution-config "file://$tmp/dist-next.json" >/dev/null
-  echo "CloudFront 배포 갱신 요청 완료 ($dist_id)"
+  if [ "$(cat "$tmp/dist-next.json.changed")" = "1" ]; then
+    # 연결된 함수를 게시하면 배포 ETag가 바뀐다(2026-11-12 두 번째 --apply의 PreconditionFailed).
+    # 게시 뒤 ETag를 다시 읽고, 설정 자체는 계산할 때와 같은지 확인한 뒤에만 갱신한다.
+    aws cloudfront get-distribution-config --id "$dist_id" --output json > "$tmp/dist-fresh.json"
+    python3 - "$tmp/dist-raw.json" "$tmp/dist-fresh.json" "$tmp/dist-etag" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    before = json.load(fh)["DistributionConfig"]
+with open(sys.argv[2], encoding="utf-8") as fh:
+    fresh = json.load(fh)
+if fresh["DistributionConfig"] != before:
+    sys.exit("ERROR: 계산 뒤 배포 설정이 바뀌었습니다(다른 변경 진행 중?) — 다시 dry-run부터 실행하세요")
+with open(sys.argv[3], "w", encoding="utf-8") as fh:
+    fh.write(fresh["ETag"])
+PY
+    aws cloudfront update-distribution --id "$dist_id" --if-match "$(cat "$tmp/dist-etag")" \
+      --distribution-config "file://$tmp/dist-next.json" >/dev/null
+    echo "CloudFront 배포 갱신 요청 완료 ($dist_id)"
+  else
+    echo "CloudFront 배포: 바꿀 것 없음(갱신 생략)"
+  fi
 fi
 if [ "$skip_waf" = "0" ]; then
   aws wafv2 update-web-acl --region "$R_GLOBAL" --cli-binary-format base64 \
