@@ -146,6 +146,7 @@ sh ops/we.sh autodeploy status
   ```
   비공개 저장소에서는 GitHub 시험 결과 조회도 익명으로 안 되므로, 그때는 `WE_AUTODEPLOY_REQUIRE_CI` 처리 방식을 다시 정한다(ADR-058).
 - **되돌리기**: `sh ops/we.sh install-daemons --remove autodeploy`(수동 `we.sh deploy`는 그대로 쓸 수 있다).
+- **순서 주의(2026-11-12 첫 설정에서 겪음)**: 5단계에서 터널 데몬을 등록하는 순간부터 배포 뒤 상태 확인이 공개 경로(②~④)까지 본다. 7단계(원본 잠금)와 공개 DNS가 끝나기 전에 자동 배포가 돌면 상태 확인 실패 → 자동 되돌림이 된다(서비스는 이전 판으로 계속 돈다). 5단계 직전에 `sh ops/we.sh autodeploy pause`, 7단계 확인이 네 줄 모두 `[OK]`가 된 뒤 `sh ops/we.sh autodeploy resume`.
 
 ---
 
@@ -222,6 +223,8 @@ sh ops/we.sh origin-secret
 ```
 
 **Cloudflare 대시보드 → `ssamuniverse.com`**에서 아래 네 항목을 적용·확인한다:
+
+> 2026-11 Cloudflare 새 화면 기준 위치: 원본 잠금은 **보안 → 보안 규칙 → 규칙 생성 → 사용자 지정 규칙**, 캐시 우회는 **규칙 → 개요 → Cache Rules 줄의 [규칙 생성]**, 웹소켓은 **네트워크**. Bot Fight Mode·최소 TLS·Always Use HTTPS는 `ssamuniverse.com` 전체(쌤유니버스 포함) 설정이라 확인만 하고 바꾸지 않는다. 이미 있는 `cl-*` 규칙은 쌤유니버스 것이다.
 
 1. **Security → WAF → Custom rules → Create rule**
    - Rule name: `we-origin-lock`
