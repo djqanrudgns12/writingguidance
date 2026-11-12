@@ -338,7 +338,7 @@ async function bootAndProbe(releaseDir, label) {
         if (!line.trim()) continue;
         try {
           const parsed = JSON.parse(line);
-          if (parsed.code === 'listening' && typeof parsed.detail === 'string') {
+          if (parsed.event === 'listening' && typeof parsed.detail === 'string') {
             boundUrl = parsed.detail;
             clearTimeout(timeout);
             resolve(boundUrl);
