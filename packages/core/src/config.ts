@@ -114,10 +114,10 @@ export const configDefaults = {
   MODEL_DIRECTION: 'claude-haiku-5-5',
   MODEL_POLISH: 'claude-haiku-5-5',
   MODEL_FALLBACK: 'claude-sonnet-5-5',
-  AI_EFFORT_SPELL: 'low',
-  AI_EFFORT_FEEDBACK: 'off',
-  AI_EFFORT_DIRECTION: 'off',
-  AI_EFFORT_POLISH: 'off',
+  AI_EFFORT_SPELL: 'medium',
+  AI_EFFORT_FEEDBACK: 'low',
+  AI_EFFORT_DIRECTION: 'medium',
+  AI_EFFORT_POLISH: 'medium',
   AI_EFFORT_FALLBACK: 'low',
 
   // 화면

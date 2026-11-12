@@ -44,6 +44,20 @@ describe('AI 재시도·대체(PLAN §8.2, PRD 6.5)', () => {
     ]);
   });
 
+  it('형식이 두 번 깨지면 대체 모델로 1번 더, 그래도 깨지면 E_AI_FORMAT', async () => {
+    const ai = createFakeAi({ script: [{ fail: 'format' }, { fail: 'format' }] });
+    const r = await runStructured(deps(ai), input('FEEDBACK'));
+    expect(r.value.praise.length).toBeGreaterThan(0);
+    expect(ai.calls.map(c => c.model)).toEqual([
+      defaultConfig.MODEL_FEEDBACK,
+      defaultConfig.MODEL_FEEDBACK,
+      defaultConfig.MODEL_FALLBACK,
+    ]);
+    const ai2 = createFakeAi({ script: [{ fail: 'format' }, { fail: 'format' }, { fail: 'format' }] });
+    await expect(runStructured(deps(ai2), input('FEEDBACK'))).rejects.toMatchObject({ code: 'E_AI_FORMAT' });
+    expect(ai2.calls.length).toBe(3);
+  });
+
   it('거절은 대체 모델로 1번, 그래도 거절이면 E_AI_REFUSED', async () => {
     const ai = createFakeAi({ script: [{ fail: 'refusal' }, { fail: 'refusal' }] });
     await expect(runStructured(deps(ai), input('DIRECTION'))).rejects.toMatchObject({ code: 'E_AI_REFUSED' });

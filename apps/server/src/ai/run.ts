@@ -93,10 +93,17 @@ export function nextAttempt(
   switch (kind) {
     case 'timeout':
       return once('timeout', prev);
+    // 형식이 두 번 깨지거나 늘린 한도에서도 잘리면 대체 모델로 한 번 더(2026-11-12 평가: Haiku 한마디의 첫 답 15~25%가 형식 실패).
     case 'format':
-      return once('format', { ...prev, formatRetry: true });
+      return (
+        once('format', { ...prev, formatRetry: true }) ??
+        (onFallback ? null : once('fallback', fallbackAttempt(config, prev, false)))
+      );
     case 'limit':
-      return once('limit', { ...prev, maxTokens: Math.ceil(prev.maxTokens * 1.5) });
+      return (
+        once('limit', { ...prev, maxTokens: Math.ceil(prev.maxTokens * 1.5) }) ??
+        (onFallback ? null : once('fallback', fallbackAttempt(config, prev, false)))
+      );
     case 'transient':
       return onFallback ? null : once('fallback', fallbackAttempt(config, prev, false));
     case 'refusal':
