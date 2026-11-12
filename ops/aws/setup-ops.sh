@@ -426,7 +426,8 @@ fields = (
     "AssociationConfig", "DataProtectionConfig", "OnSourceDDoSProtectionConfig",
     "ApplicationConfig", "MonetizationConfig",
 )
-payload = {key: acl[key] for key in fields if key in acl}
+# get 응답은 빈 설명("")·빈 목록도 돌려주는데 UpdateWebACL은 길이 0을 거부한다(2026-11-12 첫 --apply에서 발견).
+payload = {key: acl[key] for key in fields if key in acl and acl[key] not in ("", [], {}, None)}
 payload.update(Scope="CLOUDFRONT", LockToken=data["LockToken"], Rules=rules)
 with open(f"{tmp}/waf-update.json", "w", encoding="utf-8") as fh:
     json.dump(payload, fh)
