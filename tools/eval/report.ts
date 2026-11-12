@@ -3,13 +3,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   isCautionDoc,
+  computeTokenCostUsd,
   loadCandidatesConfig,
   loadDataset,
   REPO_ROOT,
   type CandidatesConfig,
   type EvalDoc,
 } from './estimate.ts';
-import { JUDGE_RUBRIC } from './judge.ts';
+import { JUDGE_BUTTONS, JUDGE_RUBRIC, loadJudgeSummary, type JudgeSummary } from './judge.ts';
 import {
   computeMetrics,
   loadRawRecords,
@@ -32,6 +33,8 @@ export function generateReportMarkdown(options: {
   readonly config: CandidatesConfig;
   readonly rawRelPath: string;
   readonly judgeBatchRelPath?: string;
+  readonly judgeResultsRelPath?: string;
+  readonly judgeSummary?: JudgeSummary;
 }): string {
   const { dateStr, metrics, docs, config, rawRelPath, judgeBatchRelPath } = options;
   const provider = metrics[0]?.provider ?? 'fake';
@@ -174,6 +177,56 @@ export function generateReportMarkdown(options: {
     lines.push(`| \`${c.id}\` | \`${c.target}\` | ${c.title} | ${c.passRule} |`);
   }
 
+  lines.push('', '## 7. 익명 비교 판정 결과', '');
+  const judge = options.judgeSummary;
+  if (!judge) {
+    lines.push('비교 판정 미실행 또는 수집 중입니다. 완성된 `judge-results.jsonl`이 없습니다.');
+  } else {
+    const failureText =
+      Object.entries(judge.failures)
+        .map(([reason, count]) => `${reason}: ${count}`)
+        .join(', ') || '없음';
+    lines.push(
+      `- 결과 파일: \`${options.judgeResultsRelPath ?? 'judge-results.jsonl'}\``,
+      '- 요청마다 후보를 A/B/C로 무작위 익명화했습니다. `custom_id`와 별도 저장한 `judge-mapping.json`으로 실제 후보를 복원했습니다.',
+      `- 전체 ${judge.total}건 중 성공 ${judge.succeeded}건, 실패 ${judge.failed}건. 실패 사유: ${failureText}.`,
+      `- 예상하지 못한 결과: ${judge.unexpectedResults}건. 실패·누락·중복 판정은 점수와 승률의 분모에서 제외합니다.`,
+      '- 승률은 해당 버튼의 유효 판정 중 단독 승리 비율이며, 동점은 어느 후보의 승리에도 넣지 않습니다. 순위는 승리 수 기준이고 같은 수는 같은 순위입니다.',
+      '- 기준별 점수는 기존 판정 형식의 전체 기준·초3 눈높이/말투·대신 써 주기 금지 통과율과 장르 관점 평균(1~5점)입니다. 세부 규칙·존중 여부는 전체 기준 통과 여부와 원시 결과의 `issues`에 반영됩니다.',
+      '- 각 후보의 첫 성공 응답(없으면 첫 응답) 하나를 대표로 비교하므로 반복 호출 전체의 품질 순위는 아닙니다.',
+    );
+    const judgeCost = computeTokenCostUsd(
+      judge.usage.inputTokens,
+      judge.usage.outputTokens,
+      config.judge.pricing,
+      1 - config.judge.batchDiscount,
+    );
+    lines.push(
+      `- 판정 사용량: 입력 ${judge.usage.inputTokens}토큰 / 출력 ${judge.usage.outputTokens}토큰. 설정 단가와 배치 할인을 적용한 비용: $${judgeCost.toFixed(4)}.`,
+      '',
+    );
+    for (const button of JUDGE_BUTTONS) {
+      const summary = judge.byButton[button];
+      lines.push(
+        `### ${button}`,
+        '',
+        `유효 판정 ${summary.succeeded}/${summary.total}건, 실패 ${summary.failed}건, 동점 ${summary.ties}건.`,
+        '',
+        '| 순위 | 후보 | 승률 (승리/유효 판정) | 전체 기준 통과 | 초3 눈높이·말투 | 대신 써 주기 금지 | 장르 관점 (1~5) |',
+        '|---:|---|---:|---:|---:|---:|---:|',
+      );
+      for (const row of summary.candidates) {
+        const label =
+          config.candidates.find(candidate => candidate.id === row.candidateId)?.label ?? row.candidateId;
+        const rate = (value: number) => (summary.succeeded ? `${(value * 100).toFixed(1)}%` : '—');
+        lines.push(
+          `| ${summary.succeeded ? row.rank : '—'} | ${label} (\`${row.candidateId}\`) | ${rate(row.winRate)} (${row.wins}/${summary.succeeded}) | ${rate(row.passRate)} | ${rate(row.politeRate)} | ${rate(row.noGhostwritingRate)} | ${summary.succeeded ? row.lensScore.toFixed(2) : '—'} |`,
+        );
+      }
+      lines.push('');
+    }
+  }
+
   return lines.join('\n') + '\n';
 }
 
@@ -184,6 +237,7 @@ export function writeEvalReport(options: {
   readonly config: CandidatesConfig;
   readonly rawPath: string;
   readonly judgeBatchPath?: string;
+  readonly localDatedReportPath?: string;
 }): { readonly reportPaths: readonly string[]; readonly metrics: readonly CandidateMetrics[] } {
   const { dateStr, records, docs, config, rawPath, judgeBatchPath } = options;
   const metrics = computeMetrics(records, docs, config);
@@ -194,6 +248,16 @@ export function writeEvalReport(options: {
   const judgeBatchRelPath = judgeBatchPath
     ? path.relative(REPO_ROOT, judgeBatchPath).replaceAll('\\', '/')
     : undefined;
+  const judgeDir = path.dirname(judgeBatchPath ?? rawPath);
+  const resultsPath = path.join(judgeDir, 'judge-results.jsonl');
+  const mappingPath = path.join(judgeDir, 'judge-mapping.json');
+  const judgeSummary = fs.existsSync(resultsPath)
+    ? loadJudgeSummary(
+        resultsPath,
+        mappingPath,
+        judgeBatchPath ?? path.join(judgeDir, 'judge-requests.jsonl'),
+      )
+    : undefined;
 
   const markdown = generateReportMarkdown({
     dateStr,
@@ -202,10 +266,17 @@ export function writeEvalReport(options: {
     config,
     rawRelPath,
     ...(judgeBatchRelPath ? { judgeBatchRelPath } : {}),
+    ...(judgeSummary
+      ? {
+          judgeSummary,
+          judgeResultsRelPath: path.relative(REPO_ROOT, resultsPath).replaceAll('\\', '/'),
+        }
+      : {}),
   });
 
   const localRunReportPath = path.join(path.dirname(rawPath), 'report.md');
-  const localDatedReportPath = path.join(REPO_ROOT, '.local/eval', `${yyyymmdd}.md`);
+  const localDatedReportPath =
+    options.localDatedReportPath ?? path.join(REPO_ROOT, '.local/eval', `${yyyymmdd}.md`);
   fs.mkdirSync(path.dirname(localRunReportPath), { recursive: true });
   fs.mkdirSync(path.dirname(localDatedReportPath), { recursive: true });
   fs.writeFileSync(localRunReportPath, markdown, 'utf8');
