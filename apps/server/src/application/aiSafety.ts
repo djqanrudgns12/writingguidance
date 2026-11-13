@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { ko } from '@geulbang/core/copy';
 import type { DictionaryPort } from '../ai/dictionary.ts';
 import { maskStudentProfanity } from '../ai/guard/lexicon.ts';
-import { maskPii, namePii, restorePii, TOKEN_LIKE, type PiiSpan } from '../ai/guard/pii.ts';
+import { maskPii, namePii, PII_TOKEN_LIKE, restorePii, type PiiSpan } from '../ai/guard/pii.ts';
 import {
   gradeContext,
   gradeSeverity,
@@ -37,26 +37,41 @@ export interface MaskedInput {
 }
 
 /**
- * 비속어를 **먼저** 가리고 개인정보를 그다음에 가린다. 거꾸로 하면 `https://…/욕설`처럼 개인정보 꼴 안의 욕설이
- * 통째로 `[주소1]`에 숨어 검사·알림을 피하고, 다듬은 글에서 그대로 되살아난다(2026-11-13 Codex 검토 1).
- * 이렇게 하면 되살린 주소 안의 욕설 자리는 `⟦가림N⟧`이라 화면에는 ○○로 나간다.
+ * 개인정보 구간을 **원문에서 먼저** 고른 뒤(이메일·주소를 비속어 가림이 깨뜨리지 않게) 나머지 글의 비속어를 가린다.
+ * 개인정보 값 안의 욕설(`https://…/욕설`)은 따로 찾아, 되살릴 값에서 ○○로 바꾸고 알림도 낸다
+ * (2026-11-13 Codex 검토 1·재검토 3). 대응표는 요청 전체가 하나를 쓴다(`prior`).
  */
 function maskOne(text: string, prior: readonly PiiSpan[]) {
-  const w = maskStudentProfanity(text);
-  const p = maskPii(w.masked, prior);
+  const p = maskPii(text, prior);
+  const w = maskStudentProfanity(p.text);
+  let piiProfane = false;
+  const pii = p.spans.map((s, i) => {
+    if (i < prior.length) return s;
+    const pw = maskStudentProfanity(s.value);
+    if (pw.spans.length === 0) return s;
+    piiProfane = true;
+    let safe = '';
+    let at = 0;
+    for (const x of pw.spans) {
+      safe += s.value.slice(at, x.start) + ko.student.aiMaskedWord;
+      at = x.end;
+    }
+    return { ...s, value: safe + s.value.slice(at) };
+  });
   return {
-    text: p.text,
-    pii: p.spans,
-    words: w.spans.map(s => ({ token: s.token, value: text.slice(s.start, s.end) })),
+    text: w.masked,
+    pii,
+    words: w.spans.map(x => ({ token: x.token, value: p.text.slice(x.start, x.end) })),
+    profane: w.spans.length > 0 || piiProfane,
   };
 }
 
 /**
- * 학생 글에 우리 자리표시자 꼴(`⟦…⟧`, `[전화번호1]` 등)이 이미 있으면 되살릴 때 헷갈리므로
- * 비슷한 다른 괄호로 바꿔 보낸다(Codex 검토 2).
+ * 학생 글에 우리 자리표시자 꼴이 이미 있으면 되살릴 때 헷갈리므로 비슷한 다른 괄호로 바꿔 보낸다.
+ * 대괄호 토큰과 ⟦⟧ 괄호를 따로따로 바꾼다(겹친 `⟦[전화번호1]⟧`도 빠짐없이, Codex 재검토 1).
  */
 const neutralize = (s: string) =>
-  s.replace(TOKEN_LIKE, m => (m.startsWith('⟦') ? `〔${m.slice(1, -1)}〕` : `［${m.slice(1, -1)}］`));
+  s.replace(PII_TOKEN_LIKE, '［$1$2］').replace(/⟦/g, '〔').replace(/⟧/g, '〕');
 
 export function maskForAi(
   text: string,
@@ -72,7 +87,7 @@ export function maskForAi(
   });
   const notices: AiNotice[] = [];
   if (main.pii.length > 0) notices.push('PII_IN_TEXT');
-  if (main.words.length > 0) notices.push('PROFANITY_IN_TEXT');
+  if (main.profane) notices.push('PROFANITY_IN_TEXT');
   return { text: main.text, helpNotes: notes, masking: { pii, words: main.words, notices } };
 }
 
@@ -258,8 +273,11 @@ export async function refineSpellWithDictionary(
         const v = await dict.lookup(word, signal);
         // 제안이 사전이 가리키는 표준어를 담을 때만 확정한다(엉뚱한 제안에 사전 근거를 붙이지 않게, Codex 검토 7).
         if (v.kind === 'nonstandard') {
+          // 찾은 낱말을 사전의 표준어로 바꾼 결과와 제안이 같을 때만 확정한다(Codex 검토 7·재검토 7).
           const to = v.to.replace(/[^가-힣]/g, '');
-          return to.length > 0 && item.suggestion.includes(to)
+          const expected = item.original.replace(word, to);
+          const same = (a: string) => a.replace(/\s+/g, '');
+          return to.length > 0 && same(item.suggestion) === same(expected)
             ? { ...item, severity: 'fix' as const, rule: ruleOf('DICT') }
             : item;
         }

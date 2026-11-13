@@ -69,11 +69,17 @@ const QUOTED = /“[^”]*”|‘[^’]*’|"[^"]*"|'[^']*'|「[^」]*」|『[^�
  * (2026-11-13 레드팀: "지금 많이 힘들었구나. …소중해요."처럼 앞 문장 반말을 놓쳤다). 따옴표 안 인용은 뺀다.
  */
 export function endsPolitely(text: string): boolean {
-  const t = text.replace(QUOTED, '○').trim();
-  // 문장부호 뒤 공백이 없어도(`고쳐라.다음…`), 문장부호 없이 줄을 바꿔도 문장을 나눈다(Codex 검토 4).
-  // 숫자 사이 점(3.5)·이어진 부호(?!)·닫는 따옴표 앞은 나누지 않는다.
+  const t = text
+    .replace(QUOTED, '○')
+    // 숫자 사이 점(3.5)은 문장 끝이 아니다
+    .replace(/(\d)\.(?=\d)/g, '$1\u2024')
+    // 줄바꿈: 앞 줄이 끝맺음 꼴(…다·…라·…요 등)로 끝나면 문장 경계, 아니면 문장 중간 줄바꿈이라 이어 붙인다
+    .replace(/([다라자냐니해어야지요죠])[ \t]*\n+/g, '$1.\n')
+    .replace(/\n+/g, ' ')
+    .trim();
+  // 문장부호(와 뒤따르는 닫는 따옴표·괄호) 뒤에서 나눈다. 공백이 없어도(`고쳐라.다음…`) 나눈다(Codex 검토 4·재검토 6).
   const sentences = t
-    .split(/(?<=[.!?])(?![.!?~"'”’)\]\d])\s*|\n+/)
+    .split(/(?<=[.!?][.!?~…]*["'”’)\]]*)(?![.!?~…"'”’)\]])\s*/)
     .map(x => x.trim())
     .filter(x => x.length > 0);
   return sentences.length > 0 && sentences.every(x => HAEYO_END.test(x));
@@ -161,7 +167,8 @@ export function checkGenerated(text: string, opts: GuardOptions): GuardRule | nu
   if (hasRepetition(t, src)) return 'G05';
   if (opts.speech) {
     // 학생에게 건네는 말에서는 원문에 있어도 기술 용어를 쓰지 않는다. 따옴표로 인용한 원문만 뺀다(Codex 검토 6).
-    const spoken = t.replace(QUOTED, '○');
+    // 인용 예외는 따옴표 안이 실제 원문일 때만(새로 만든 말에 따옴표만 붙여 피하지 못하게, Codex 재검토 4).
+    const spoken = t.replace(QUOTED, q => (q.length > 2 && src.includes(q.slice(1, -1)) ? '○' : q));
     for (const term of TECH_TERMS) if (spoken.includes(term)) return 'G06';
     if (opts.speech === true && !endsPolitely(t)) return 'G07';
   }

@@ -42,22 +42,33 @@ export function maskPii(text: string, prior: readonly PiiSpan[] = []): PiiMasked
   const spans: PiiSpan[] = [...prior];
   const counters: Record<PiiKind, number> = { phone: 0, email: 0, rrn: 0, url: 0 };
   for (const s of prior) counters[s.kind] += 1;
-  let out = text;
-  for (const { kind, re } of PATTERNS) {
-    out = out.replace(re, value => {
-      const seen = spans.find(s => s.kind === kind && s.value === value);
-      if (seen) return seen.token;
-      counters[kind] += 1;
-      const token = tokenOf(kind, counters[kind]);
-      spans.push({ kind, token, value });
-      return token;
-    });
+  // 원문에서 모든 꼴을 찾은 뒤 겹치지 않게 고른다(앞선 것, 같은 자리면 긴 것). 차례로 바꾸면 주소 안의 이메일처럼
+  // 토큰이 다른 토큰 값 안에 들어가 되돌릴 때 풀리지 않는다(2026-11-13 Codex 재검토 2).
+  const found: { kind: PiiKind; start: number; end: number; rank: number }[] = [];
+  PATTERNS.forEach(({ kind, re }, rank) => {
+    re.lastIndex = 0;
+    for (const m of text.matchAll(re)) found.push({ kind, start: m.index, end: m.index + m[0].length, rank });
+  });
+  found.sort((a, b) => a.start - b.start || b.end - a.end || a.rank - b.rank);
+  let out = '';
+  let at = 0;
+  for (const f of found) {
+    if (f.start < at) continue;
+    const value = text.slice(f.start, f.end);
+    let span = spans.find(s => s.kind === f.kind && s.value === value);
+    if (!span) {
+      counters[f.kind] += 1;
+      span = { kind: f.kind, token: tokenOf(f.kind, counters[f.kind]), value };
+      spans.push(span);
+    }
+    out += text.slice(at, f.start) + span.token;
+    at = f.end;
   }
-  return { text: out, spans };
+  return { text: out + text.slice(at), spans };
 }
 
-/** 우리 자리표시자 꼴(`[전화번호1]`·`⟦가림1⟧`). 학생이 같은 꼴을 직접 썼으면 보내기 전에 괄호를 바꿔 둔다. */
-export const TOKEN_LIKE = /\[(?:전화번호|이메일|주민번호|주소)\d+\]|⟦[^⟧]*⟧/g;
+/** 우리 개인정보 자리표시자 꼴(`[전화번호1]`). 학생이 같은 꼴을 직접 썼으면 보내기 전에 괄호를 바꿔 둔다. */
+export const PII_TOKEN_LIKE = /\[(전화번호|이메일|주민번호|주소)(\d+)\]/g;
 
 /** 자리표시자를 한 번에 바꾼다(되돌린 값 안에 또 토큰 꼴이 있어도 다시 바꾸지 않게). */
 function replaceTokens(text: string, spans: readonly PiiSpan[], to: (s: PiiSpan) => string): string {

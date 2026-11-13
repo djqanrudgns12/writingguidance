@@ -172,7 +172,7 @@ export function cleanDirection(result: DirectionResult, source = ''): DirectionR
     ideas: ideas.map(i => {
       // 이름표를 먼저 검증한다: 검증 전 이름표로 말투 검사를 끄지 못하게(Codex 검토 5).
       const label =
-        i.label && LABEL_OK.test(i.label) && !checkGenerated(i.label, { source, speech: false })
+        i.label && LABEL_OK.test(i.label) && !checkGenerated(i.label, { source, speech: 'noHaeyo' })
           ? i.label
           : undefined;
       // "제목 후보"·"후렴 후보"처럼 허용된 후보 이름표의 항목은 명사 목록이라 해요체만 빼고, 기술 용어는 그대로 본다.
