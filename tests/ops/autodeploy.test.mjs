@@ -147,7 +147,8 @@ for (const condition of ['수업 시간', '일시정지', '활성 연결', '배�
     const f = fixture(t);
     f.publish();
     const overrides = {};
-    if (condition === '수업 시간') overrides.WE_TEST_KST_DOW_HOUR = '4:10';
+    if (condition === '수업 시간')
+      Object.assign(overrides, { WE_TEST_KST_DOW_HOUR: '4:10', WE_SCHOOL_HOURS_GUARD: 'on' });
     if (condition === '일시정지') writeFileSync(join(f.home, 'AUTO_DEPLOY_PAUSED'), '');
     if (condition === '활성 연결') writeFileSync(join(f.home, 'health.json'), '{"connections":3}');
     if (condition === '배포 잠금') {
@@ -365,11 +366,17 @@ test('deploy.sh는 수업 시간 거부를 75로 반환하고 잘못된 git SHA�
   const f = fixture(t);
   const script = join(root, 'ops/scripts/deploy.sh');
   const school = spawnSync('sh', [script, '--git', f.next], {
-    env: { ...f.env, WE_TEST_KST_DOW_HOUR: '4:10' },
+    env: { ...f.env, WE_TEST_KST_DOW_HOUR: '4:10', WE_SCHOOL_HOURS_GUARD: 'on' },
     encoding: 'utf8',
   });
   assert.equal(school.status, 75);
   assert.match(school.stderr, /수업 시간 금지창/);
+  // 개발 중(기본값 off, ADR-062)에는 같은 시각이어도 금지창으로 거부하지 않는다.
+  const dev = spawnSync('sh', [script, '--git', f.next], {
+    env: { ...f.env, WE_TEST_KST_DOW_HOUR: '4:10' },
+    encoding: 'utf8',
+  });
+  assert.doesNotMatch(dev.stderr, /수업 시간 금지창/);
   const invalid = spawnSync('sh', [script, '--git', 'bad-sha'], { env: f.env, encoding: 'utf8' });
   assert.equal(invalid.status, 1);
   assert.match(invalid.stderr, /40자/);

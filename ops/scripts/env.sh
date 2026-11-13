@@ -170,8 +170,14 @@ we_lock() {
   return 0
 }
 
+# 수업 시간 배포 금지창 켜기·끄기(ADR-062). 실제 수업에 쓰기 전 개발 중에는 off: 푸시가 GitHub 시험을 통과하면 바로 배포된다.
+# 학교 수업에 쓰기 시작하면 이 줄을 on으로 바꿔 커밋한다(그 뒤로는 평일 08:00~16:00 배포를 우회 옵션 없이 거부).
+WE_SCHOOL_HOURS_GUARD="${WE_SCHOOL_HOURS_GUARD:-off}"
+
 # 한국 시각(Asia/Seoul) 기준 평일(월~금) 08:00~15:59(08:00 이상 16:00 미만)이면 0(금지창)을 돌려준다(PLAN §15.2, §15.4).
+# 금지창이 꺼져 있으면(개발 중) 늘 1. 실시간 연결 0개 확인은 금지창과 상관없이 그대로 한다.
 we_is_school_hours() {
+  [ "$WE_SCHOOL_HOURS_GUARD" = "on" ] || return 1
   kst_now="${WE_TEST_KST_DOW_HOUR:-$(TZ=Asia/Seoul date '+%u:%H')}"
   case "$kst_now" in
     [1-5]:08|[1-5]:09|[1-5]:1[0-5])

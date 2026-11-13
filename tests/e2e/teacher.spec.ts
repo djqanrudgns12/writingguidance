@@ -434,7 +434,11 @@ test.describe('교사 (PRD 16.4)', () => {
     }
   });
 
-  test('모두 내려받기 zip에 학생별 파일과 전체모음이 들어 있다', async ({ browser, request }) => {
+  test('모두 내려받기 zip에 학생별 파일과 전체모음이 들어 있다', async ({
+    browser,
+    browserName,
+    request,
+  }) => {
     const room = await createRoomRest(request, { title: '내려받기 수업' });
     const names = [nick('누리'), nick('두레')];
     const students: Device[] = [];
@@ -459,7 +463,12 @@ test.describe('교사 (PRD 16.4)', () => {
         .getByRole('button', { name: new RegExp(`^${ko.teacher.exportAllDocsAction}`) })
         .click();
       const download = await downloadPromise;
-      expect(download.suggestedFilename()).toMatch(/^내려받기 수업_5학년 3반_\d{8}\.zip$/);
+      // Linux WebKit은 download 속성의 공백을 밑줄로 바꾼다. 이름·구분자·날짜·확장자는 그대로 검사한다.
+      const filenamePattern =
+        browserName === 'webkit'
+          ? /^내려받기[ _]수업_5학년[ _]3반_\d{8}\.zip$/
+          : /^내려받기 수업_5학년 3반_\d{8}\.zip$/;
+      expect(download.suggestedFilename()).toMatch(filenamePattern);
       const path = await download.path();
       const entries = readZip(await readFile(path));
       const fileNames = entries.map(e => e.name);

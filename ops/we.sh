@@ -170,9 +170,11 @@ case "$cmd" in
     [ "$(id -u)" != "0" ] || die "root가 아닌 소유자 계정에서 실행하세요: sh ops/we.sh deploy"
 
     # 평일 08:00~16:00 KST 금지창을 번들 생성 전에도 먼저 차단한다(deploy.sh 안에서도 다시 차단).
+    # 금지창 켜기·끄기는 scripts/env.sh 한 곳(WE_SCHOOL_HOURS_GUARD, ADR-062)을 따른다.
+    guard="${WE_SCHOOL_HOURS_GUARD:-$(sed -n 's/^WE_SCHOOL_HOURS_GUARD="\${WE_SCHOOL_HOURS_GUARD:-\([a-z]*\)}"$/\1/p' "$here/scripts/env.sh")}"
     kst_now="$(TZ=Asia/Seoul date '+%u:%H')"
-    case "$kst_now" in
-      [1-5]:08|[1-5]:09|[1-5]:1[0-5])
+    case "$guard:$kst_now" in
+      on:[1-5]:08|on:[1-5]:09|on:[1-5]:1[0-5])
         echo "ERROR: 평일 08:00~16:00 KST(수업 시간 금지창)에는 배포할 수 없습니다 (강제 실행 불가)" >&2
         exit 75
         ;;
