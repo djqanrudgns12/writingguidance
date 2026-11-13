@@ -81,9 +81,10 @@ describe('사전 보정(U-25)', () => {
     original: string,
     severity: SpellOutItem['severity'],
     kind: SpellOutItem['kind'] = '맞춤법',
+    suggestion = original + '?',
   ): SpellOutItem => ({
     original,
-    suggestion: original + '?',
+    suggestion,
     reason: '고쳐 보면 좋아요.',
     kind,
     context: { before: '', after: '' },
@@ -105,7 +106,7 @@ describe('사전 보정(U-25)', () => {
   it('사전이 비표준어라고 하면 대사 안(그대로)이어도 고쳐요로, 등급 순서로 다시 줄 세운다', async () => {
     const dict = fakeDict({ 오랫만: { kind: 'nonstandard', to: '오랜만' } });
     const out = await refineSpellWithDictionary(
-      [item('진짜루', 'suggest'), item('오랫만이야', 'keep')],
+      [item('진짜루', 'suggest'), item('오랫만이야', 'keep', '맞춤법', '오랜만이야')],
       dict,
       12,
       signal,
@@ -116,6 +117,16 @@ describe('사전 보정(U-25)', () => {
     ]);
     // 조사·서술격을 떼고 다시 찾았다
     expect(dict.asked).toContain('오랫만');
+  });
+  it('제안이 사전의 표준어를 담지 않으면 고쳐요로 올리지 않는다(Codex 검토 7)', async () => {
+    const dict = fakeDict({ 오랫만: { kind: 'nonstandard', to: '오랜만' } });
+    const out = await refineSpellWithDictionary(
+      [item('오랫만이야', 'suggest', '맞춤법', '오랫밤이야')],
+      dict,
+      12,
+      signal,
+    );
+    expect(out[0]?.severity).toBe('suggest');
   });
   it('표준어·사전에 없음·조회 실패는 바꾸지 않는다, 고쳐요·띄어쓰기는 묻지 않는다', async () => {
     const dict = fakeDict({ 가르쳐: { kind: 'standard' }, 문득: { kind: 'unknown' } });

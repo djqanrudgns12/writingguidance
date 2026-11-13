@@ -15,7 +15,12 @@ function channelIn(state: RoomChannelState, failure: ErrorCode | null = null): R
     send: async () => {
       throw new Error('쓰지 않음');
     },
-    queue: { enqueue: async () => '', pending: async () => [], onResult: () => () => {} },
+    queue: {
+      enqueue: async () => '',
+      pending: async () => [],
+      flush: async () => {},
+      onResult: () => () => {},
+    },
     close() {},
   };
 }

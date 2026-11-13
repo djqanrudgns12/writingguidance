@@ -82,6 +82,40 @@ describe('명령 대기열(outbox)', () => {
     expect(await outbox.pending()).toEqual([]);
     outbox.close();
   });
+
+  it('붙잡을 거절(동의 판이 지난 제출, P6-consent-block)은 지우지도 알리지도 다시 돌지도 않고, 다음 flush에 같은 commandId로 보낸다', async () => {
+    const { channel, state, sent } = fakeChannel([
+      { ok: false, error: { code: 'E_INPUT', retryable: false } },
+      { ok: true, data: { status: 'SUBMITTED' } },
+    ]);
+    const store = createMemoryStore();
+    const results: OutboxResult[] = [];
+    let n = 0;
+    const outbox = createOutbox({
+      store: store.outbox,
+      channel,
+      waitDocSynced: async () => {},
+      onResult: r => results.push(r),
+      holdOn: e => e.code === 'E_INPUT',
+      retryDelayMs: 1,
+      newId: () => `c${++n}`,
+    });
+    state.set('ready');
+    await outbox.enqueue({ docId: 'd1', name: 'doc.submit', args: {} });
+    await outbox.flush();
+    await new Promise(r => setTimeout(r, 10));
+    // 붙잡힘: 남아 있고, 결과를 알리지 않고, 시간표로 다시 보내지도 않는다.
+    expect(sent.map(s => s.commandId)).toEqual(['c1']);
+    expect(results).toEqual([]);
+    expect((await outbox.pending()).map(e => e.commandId)).toEqual(['c1']);
+
+    // 재동의 뒤 `flush`: 같은 명령으로 보내 제출된다.
+    await outbox.flush();
+    expect(sent.map(s => s.commandId)).toEqual(['c1', 'c1']);
+    expect(results.map(r => [r.entry.commandId, r.ok])).toEqual([['c1', true]]);
+    expect(await outbox.pending()).toEqual([]);
+    outbox.close();
+  });
 });
 
 describe('명령 대기열: 글 동기화 기다리기가 거부되면(검토 7번)', () => {

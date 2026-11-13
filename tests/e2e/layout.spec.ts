@@ -22,7 +22,7 @@ import {
 /**
  * 배치(PRD 16.5, PLAN §10.5 `layout.spec.ts`). 폭 360·768·1024·1280에서 주요 화면이 가로로 넘치지 않는지,
  * 화면 키보드가 올라왔을 때(visualViewport 흉내) 쓰기 화면 하단 바와 쓰던 줄이 키보드 위에 있는지 본다.
- * 스스로 여러 폭을 돌므로 1280 프로젝트에서만 돈다(`playwright.config.ts`의 testIgnore).
+ * 스스로 여러 폭을 돌므로 엔진마다 한 번 돈다(`playwright.config.ts`에서 Chromium 360만 제외).
  */
 
 const HEIGHT_FOR: Record<number, number> = { 360: 740, 768: 1024, 1024: 768, 1280: 800 };
@@ -180,7 +180,7 @@ test.describe('배치 (PRD 16.5)', () => {
     const KEYBOARD = 300;
     const room = await createRoomRest(request);
     const { context, page } = await newDevice(browser, { width: 360, height: 740 });
-    // Chromium 데스크톱에는 화면 키보드가 없어 visualViewport를 흉내 낸다(앱은 높이·offsetTop·resize만 쓴다).
+    // 데스크톱 자동화에는 화면 키보드가 없어 visualViewport를 흉내 낸다(앱은 높이·offsetTop·resize만 쓴다).
     await context.addInitScript(() => {
       const fake = new EventTarget() as EventTarget & Record<string, number>;
       let kb = 0;

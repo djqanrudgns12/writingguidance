@@ -12,6 +12,10 @@ import { assertConvergedAndProtected, openImeDualRig, ZERO_WRITES, type ImeDualR
  * 4) 반영 문이 닫혀 있는 동안 앱에 의한 입력칸 DOM 쓰기(`value`·`setRangeText`·`setSelectionRange` 등)가 0회인지 검증한다.
  */
 test.describe('한글 조합 보호 (PRD 9.3 · PLAN §10.3)', () => {
+  test.skip(
+    ({ browserName }) => browserName === 'webkit',
+    'WebKit 자동화는 CDP Input.imeSetComposition을 지원하지 않는다. Safari 한글 조합은 PRD 9.3의 실기기 흐름 재생·실기기 확인으로 검증한다.',
+  );
   let rig: ImeDualRig | null = null;
 
   test.afterEach(async () => {

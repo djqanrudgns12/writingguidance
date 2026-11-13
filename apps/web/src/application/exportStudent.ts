@@ -9,7 +9,7 @@ import {
 import type { DownloadPort } from '../ports/download.ts';
 
 /**
- * 학생 내보내기(PRD F-12): `글 복사`·`텍스트 파일로 저장(.txt)`, 노래 가사면 `Suno 가사 복사`·`스타일 문구 복사`.
+ * 학생 내보내기(PRD F-12): `글 복사`·`글 파일로 저장(.txt)`, 노래 가사면 `Suno 가사 복사`·`스타일 문구 복사`.
  * 파일 이름 정리와 텍스트 파일 바이트(UTF-8 + BOM, PLAN §6.7)는 교사 모두 내려받기(`exportAll.ts`)도 같이 쓴다.
  */
 
@@ -165,7 +165,7 @@ export function buildStudentExport(input: StudentExportInput, options: StudentEx
   return { text: composePlainText(input.title, input.body), fileName, suno };
 }
 
-/** `텍스트 파일로 저장(.txt)`: UTF-8 + BOM 파일로 내려받게 한다. */
+/** `글 파일로 저장(.txt)`: UTF-8 + BOM 파일로 내려받게 한다. */
 export function saveStudentTextFile(download: DownloadPort, exported: StudentExport): void {
   download.save({ name: exported.fileName, blob: textFileBlob(exported.text) });
 }

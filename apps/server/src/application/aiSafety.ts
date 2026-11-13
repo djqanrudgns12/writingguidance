@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { ko } from '@geulbang/core/copy';
 import type { DictionaryPort } from '../ai/dictionary.ts';
 import { maskStudentProfanity } from '../ai/guard/lexicon.ts';
-import { maskPii, namePii, restorePii, type PiiSpan } from '../ai/guard/pii.ts';
+import { maskPii, namePii, restorePii, TOKEN_LIKE, type PiiSpan } from '../ai/guard/pii.ts';
 import {
   gradeContext,
   gradeSeverity,
@@ -36,29 +36,44 @@ export interface MaskedInput {
   readonly masking: Masking;
 }
 
-function maskOne(text: string) {
-  const p = maskPii(text);
-  const w = maskStudentProfanity(p.text);
+/**
+ * 비속어를 **먼저** 가리고 개인정보를 그다음에 가린다. 거꾸로 하면 `https://…/욕설`처럼 개인정보 꼴 안의 욕설이
+ * 통째로 `[주소1]`에 숨어 검사·알림을 피하고, 다듬은 글에서 그대로 되살아난다(2026-11-13 Codex 검토 1).
+ * 이렇게 하면 되살린 주소 안의 욕설 자리는 `⟦가림N⟧`이라 화면에는 ○○로 나간다.
+ */
+function maskOne(text: string, prior: readonly PiiSpan[]) {
+  const w = maskStudentProfanity(text);
+  const p = maskPii(w.masked, prior);
   return {
-    text: w.masked,
+    text: p.text,
     pii: p.spans,
-    words: w.spans.map(s => ({ token: s.token, value: p.text.slice(s.start, s.end) })),
+    words: w.spans.map(s => ({ token: s.token, value: text.slice(s.start, s.end) })),
   };
 }
 
-/** 학생 글에 우리 자리표시자 괄호(⟦⟧)가 이미 있으면 되살릴 때 헷갈리므로 비슷한 다른 괄호로 바꿔 보낸다. */
-const neutralize = (s: string) => s.replace(/⟦/g, '〔').replace(/⟧/g, '〕');
+/**
+ * 학생 글에 우리 자리표시자 꼴(`⟦…⟧`, `[전화번호1]` 등)이 이미 있으면 되살릴 때 헷갈리므로
+ * 비슷한 다른 괄호로 바꿔 보낸다(Codex 검토 2).
+ */
+const neutralize = (s: string) =>
+  s.replace(TOKEN_LIKE, m => (m.startsWith('⟦') ? `〔${m.slice(1, -1)}〕` : `［${m.slice(1, -1)}］`));
 
 export function maskForAi(
   text: string,
   helpNotes: readonly { readonly question: string; readonly note: string }[],
 ): MaskedInput {
-  const main = maskOne(neutralize(text));
-  const notes = helpNotes.map(n => ({ question: n.question, note: maskOne(neutralize(n.note)).text }));
+  const main = maskOne(neutralize(text), []);
+  // 메모는 본문 대응표를 이어 써서 같은 토큰이 다른 값을 가리키지 않게 한다(Codex 검토 2).
+  let pii = main.pii;
+  const notes = helpNotes.map(n => {
+    const m = maskOne(neutralize(n.note), pii);
+    pii = m.pii;
+    return { question: n.question, note: m.text };
+  });
   const notices: AiNotice[] = [];
   if (main.pii.length > 0) notices.push('PII_IN_TEXT');
   if (main.words.length > 0) notices.push('PROFANITY_IN_TEXT');
-  return { text: main.text, helpNotes: notes, masking: { pii: main.pii, words: main.words, notices } };
+  return { text: main.text, helpNotes: notes, masking: { pii, words: main.words, notices } };
 }
 
 /** 남용 탐지용 불투명 ID(M-04): 참여자 ID의 해시 앞 32자. 참여자 ID 자체도 임의 UUID라 사람을 알 수 없다. */
@@ -118,7 +133,8 @@ export function finalizeSpell(
       at,
       original: item.original,
       suggestion: item.suggestion,
-      reason: item.reason,
+      // 이유는 AI의 말이라 자리표시자를 종류 이름으로(학생 개인정보를 되풀이하지 않게, Codex 검토 3)
+      reason: unmaskForSpeech(item.reason, m),
       kind,
       context: {
         before: [...realText.slice(0, at)].slice(-CONTEXT).join(''),
@@ -240,7 +256,13 @@ export async function refineSpellWithDictionary(
         if (budget <= 0 || signal.aborted) return item;
         budget -= 1;
         const v = await dict.lookup(word, signal);
-        if (v.kind === 'nonstandard') return { ...item, severity: 'fix' as const, rule: ruleOf('DICT') };
+        // 제안이 사전이 가리키는 표준어를 담을 때만 확정한다(엉뚱한 제안에 사전 근거를 붙이지 않게, Codex 검토 7).
+        if (v.kind === 'nonstandard') {
+          const to = v.to.replace(/[^가-힣]/g, '');
+          return to.length > 0 && item.suggestion.includes(to)
+            ? { ...item, severity: 'fix' as const, rule: ruleOf('DICT') }
+            : item;
+        }
         if (v.kind !== 'absent') return item;
       }
       return item;

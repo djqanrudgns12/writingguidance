@@ -92,6 +92,8 @@ export interface CommandQueue {
     readonly args: unknown;
   }): Promise<string>;
   pending(): Promise<readonly { readonly commandId: string; readonly docId: string | null }[]>;
+  /** 남은 것을 지금 다시 보낸다(재동의 뒤 붙잡아 둔 제출을 보내려고, P6-consent-block). */
+  flush(): Promise<void>;
   onResult(
     listener: (r: {
       readonly commandId: string;

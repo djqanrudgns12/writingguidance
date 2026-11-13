@@ -153,6 +153,10 @@ function lazyChannel(
     queue: {
       enqueue: async entry => (await ready()).queue.enqueue(entry),
       pending: async () => (await ready()).queue.pending(),
+      flush: async () => {
+        // 아직 연결 전이면 보낼 것도 없다(연결되면 대기열이 스스로 보낸다).
+        if (real) await real.queue.flush();
+      },
       onResult(listener) {
         if (real) return real.queue.onResult(listener);
         waitingResults.set(listener, null);

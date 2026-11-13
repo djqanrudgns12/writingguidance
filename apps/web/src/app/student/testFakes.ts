@@ -185,6 +185,7 @@ export function fakeChannel(roomId: string): FakeChannel {
         return commandId;
       },
       pending: async () => [],
+      flush: async () => {},
       onResult(listener) {
         resultListeners.add(listener);
         return () => resultListeners.delete(listener);

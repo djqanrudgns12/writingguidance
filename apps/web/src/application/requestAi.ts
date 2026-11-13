@@ -228,7 +228,7 @@ const apiErrorOf = (code: ErrorCode): ApiError => ({
   retryable: errorCatalog[code].retryable,
 });
 
-/** 어댑터가 던진 `ApiError`는 그대로, 그 밖(스트림이 끊김 등)은 "잠깐 뒤에 다시 눌러 주세요". */
+/** 어댑터가 던진 `ApiError`는 그대로, 그 밖(스트림이 끊김 등)은 "잠시 뒤에 다시 눌러 주세요". */
 function toApiError(error: unknown): ApiError {
   return isApiError(error) ? error : apiErrorOf('E_AI_PROVIDER');
 }

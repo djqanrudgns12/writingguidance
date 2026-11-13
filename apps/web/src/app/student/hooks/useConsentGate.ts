@@ -2,7 +2,7 @@ import type { ErrorCode } from '@geulbang/core/errors';
 import type { Hello } from '@geulbang/core/protocol';
 import { useCallback, useRef, useState } from 'react';
 import type { AppDeps } from '../../../application/deps.ts';
-import { consentNeeded, updateConsent } from '../../../application/joinRoom.ts';
+import { consentNeeded, consentRefused, updateConsent } from '../../../application/joinRoom.ts';
 import type { StudentSession } from '../../../application/openWriting.ts';
 import { errorCodeOf } from '../errorCode.ts';
 
@@ -17,6 +17,11 @@ export interface ConsentGate {
   readonly agreeing: boolean;
   readonly error: ErrorCode | null;
   agree(): Promise<void>;
+  /**
+   * 서버가 동의 판 때문에 명령을 거절했는지 보고, 그렇다면 다시 동의 화면을 보이게 한다(P6-consent-block).
+   * 거절이 동의 판 때문이면 true(부르는 쪽은 오류 화면 대신 이 관문에 맡긴다).
+   */
+  refusedBy(code: ErrorCode): boolean;
 }
 
 export function useConsentGate(
@@ -48,5 +53,14 @@ export function useConsentGate(
     }
   }, [deps, student, needed, agreeing]);
 
-  return { needed, agreeing, error, agree };
+  const refusedBy = useCallback(
+    (code: ErrorCode) => {
+      if (!student || !consentRefused(student.channel, hello, code)) return false;
+      setAgreedTick(n => n + 1);
+      return true;
+    },
+    [student, hello],
+  );
+
+  return { needed, agreeing, error, agree, refusedBy };
 }

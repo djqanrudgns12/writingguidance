@@ -606,7 +606,7 @@ describe('다듬은 글 스트림(PLAN §8.3·§8.6)', () => {
     expect(await requester.lastResult(DOC, 'POLISH')).toEqual(before);
   });
 
-  it('끝 표시 없이 끊기면 받은 데까지 보이고 "잠깐 뒤에 다시"', async () => {
+  it('끝 표시 없이 끊기면 받은 데까지 보이고 "잠시 뒤에 다시"', async () => {
     fake.state.lines = [text('어제 운동장에서 '), new TypeError('network')];
     const { handlers, seen } = collect();
     await createAiRequester(deps).polish(story(POLISH_BODY), handlers).finished;

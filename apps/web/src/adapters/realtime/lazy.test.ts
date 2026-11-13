@@ -30,7 +30,12 @@ function fakePort() {
       sent.push(name);
       return { ok: name } as T;
     },
-    queue: { enqueue: async () => 'cmd', pending: async () => [], onResult: () => () => {} },
+    queue: {
+      enqueue: async () => 'cmd',
+      pending: async () => [],
+      flush: async () => {},
+      onResult: () => () => {},
+    },
     close() {
       channelState.set('closed');
     },

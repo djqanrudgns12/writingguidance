@@ -38,7 +38,8 @@ export const E2E_AI_DAILY_PER_PARTICIPANT = 3;
  */
 export const E2E_ROOM_CREATE_PER_DAY = 1000;
 
-/** 화면 폭(PLAN §10.5): 기본 360·1280, 배치 시험만 360·768·1024·1280. */
+/** 화면 폭(PLAN §10.5): Chromium 360·1280, WebKit 1024, 배치 시험은 360·768·1024·1280. */
 export const E2E_DESKTOP_VIEWPORT = { width: 1280, height: 800 } as const;
 export const E2E_PHONE_VIEWPORT = { width: 360, height: 740 } as const;
+export const E2E_TABLET_VIEWPORT = { width: 1024, height: 768 } as const;
 export const E2E_LAYOUT_WIDTHS = [360, 768, 1024, 1280] as const;

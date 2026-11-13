@@ -8,6 +8,7 @@ import { isUniqueViolation } from '../store/db.ts';
 import { hashArgs } from '../store/repos/commands.ts';
 import type { Repos } from '../store/repos/index.ts';
 import { roomStatusAt } from '../store/repos/rooms.ts';
+import { assertConsentCurrent } from './consent.ts';
 import { normalizeNickname } from './nickname.ts';
 
 /**
@@ -55,9 +56,7 @@ export function joinRoom(
   });
 
   // 기기는 조회 응답의 `policyVersion`으로 동의를 받는다. 그사이 정책이 바뀌었으면 다시 받게 한다(PRD F-03).
-  if (body.consentVersion !== p.POLICY_VERSION) {
-    throw new AppError('E_INPUT', 'consent version is not current', { consentVersion: 'outdated' });
-  }
+  assertConsentCurrent(body.consentVersion, p.POLICY_VERSION);
   const nickname = normalizeNickname(body.nickname, p);
 
   return repos.commands.runOnce({ ...key, roomId }, now, () => {

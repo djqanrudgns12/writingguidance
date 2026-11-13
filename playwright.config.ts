@@ -12,13 +12,15 @@ import {
   E2E_ROOM_TTL_MINUTES,
   E2E_SNAPSHOT_INTERVAL_SEC,
   E2E_START_CODE,
+  E2E_TABLET_VIEWPORT,
   E2E_WEB_DIST_DIR,
 } from './tests/e2e/constants.ts';
 
 /**
  * Playwright 화면 시험 설정(PLAN §10.3·§10.5, P2-6·P4-15).
- * 브라우저는 Chromium만(WebKit 프로젝트는 나중 일). 폭은 1280·360 두 프로젝트로 돌리고,
- * 폭과 관계없는 시험(한글 조합·만료)과 스스로 여러 폭을 도는 배치 시험은 1280 프로젝트에서만 돈다.
+ * Chromium은 1280·360, WebKit은 iPad 가로 폭에 가까운 1024에서 돈다.
+ * Chromium 360에서는 폭과 관계없는 시험과 스스로 여러 폭을 도는 배치 시험을 중복하지 않는다.
+ * WebKit은 배치 시험에서 360·768·1024·1280도 확인하고, CDP 한글 조합 시험만 도구 한계로 건너뛴다.
  * 시험 서버 하나를 모든 시험이 함께 쓰므로 worker는 1개다.
  */
 export default defineConfig({
@@ -43,6 +45,10 @@ export default defineConfig({
       name: 'chromium-360',
       use: { ...devices['Desktop Chrome'], viewport: E2E_PHONE_VIEWPORT },
       testIgnore: ['**/ime.spec.ts', '**/layout.spec.ts', '**/retention.spec.ts'],
+    },
+    {
+      name: 'webkit-1024',
+      use: { ...devices['Desktop Safari'], viewport: E2E_TABLET_VIEWPORT },
     },
   ],
   webServer: {

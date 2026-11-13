@@ -380,7 +380,7 @@ test.describe('디자인 규칙 (PRD 16.1 · 16.7)', () => {
   });
 
   test('첫 화면(홈)의 그림·종이 결 합계가 80KB 이하다(360·1280, 새 기기)', async ({ browser }, info) => {
-    test.skip(info.project.name !== 'chromium-1280', '두 폭을 스스로 재므로 1280 프로젝트에서만 돈다');
+    test.skip(info.project.name === 'chromium-360', '두 폭을 스스로 재므로 엔진마다 한 번 돈다');
     for (const viewport of [E2E_PHONE_VIEWPORT, E2E_DESKTOP_VIEWPORT]) {
       const context = await browser.newContext({ viewport: { ...viewport } });
       try {

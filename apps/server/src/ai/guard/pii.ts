@@ -34,10 +34,14 @@ export interface PiiMasked {
   readonly spans: readonly PiiSpan[];
 }
 
-/** 같은 값은 같은 자리표시자를 쓴다(다듬은 글에서 되돌릴 때 순서가 바뀌어도 맞게). */
-export function maskPii(text: string): PiiMasked {
-  const spans: PiiSpan[] = [];
+/**
+ * 같은 값은 같은 자리표시자를 쓴다(다듬은 글에서 되돌릴 때 순서가 바뀌어도 맞게).
+ * `prior`: 같은 요청의 앞서 가린 대응표(본문 → 도움 메모). 번호를 이어 매겨 한 요청 안에서 토큰이 겹치지 않게 한다.
+ */
+export function maskPii(text: string, prior: readonly PiiSpan[] = []): PiiMasked {
+  const spans: PiiSpan[] = [...prior];
   const counters: Record<PiiKind, number> = { phone: 0, email: 0, rrn: 0, url: 0 };
+  for (const s of prior) counters[s.kind] += 1;
   let out = text;
   for (const { kind, re } of PATTERNS) {
     out = out.replace(re, value => {
@@ -52,11 +56,26 @@ export function maskPii(text: string): PiiMasked {
   return { text: out, spans };
 }
 
+/** 우리 자리표시자 꼴(`[전화번호1]`·`⟦가림1⟧`). 학생이 같은 꼴을 직접 썼으면 보내기 전에 괄호를 바꿔 둔다. */
+export const TOKEN_LIKE = /\[(?:전화번호|이메일|주민번호|주소)\d+\]|⟦[^⟧]*⟧/g;
+
+/** 자리표시자를 한 번에 바꾼다(되돌린 값 안에 또 토큰 꼴이 있어도 다시 바꾸지 않게). */
+function replaceTokens(text: string, spans: readonly PiiSpan[], to: (s: PiiSpan) => string): string {
+  if (spans.length === 0) return text;
+  const byToken = new Map(spans.map(s => [s.token, s]));
+  const re = new RegExp(
+    [...byToken.keys()].map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
+    'g',
+  );
+  return text.replace(re, t => {
+    const s = byToken.get(t);
+    return s ? to(s) : t;
+  });
+}
+
 /** 응답에서 자리표시자를 원래 값으로 되돌린다(다듬은 글: 학생 자신의 글이므로). */
 export function restorePii(text: string, spans: readonly PiiSpan[]): string {
-  let out = text;
-  for (const s of spans) out = out.split(s.token).join(s.value);
-  return out;
+  return replaceTokens(text, spans, s => s.value);
 }
 
 /** 응답에서 자리표시자를 종류 이름으로 바꾼다(한마디·방향: 학생 개인정보를 AI 말로 되풀이하지 않게). */
@@ -65,9 +84,7 @@ export function namePii(
   spans: readonly PiiSpan[],
   names: Readonly<Record<PiiKind, string>>,
 ): string {
-  let out = text;
-  for (const s of spans) out = out.split(s.token).join(names[s.kind]);
-  return out;
+  return replaceTokens(text, spans, s => names[s.kind]);
 }
 
 export const hasToken = (text: string, spans: readonly { readonly token: string }[]): boolean =>

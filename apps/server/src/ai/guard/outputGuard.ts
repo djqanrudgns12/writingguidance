@@ -11,8 +11,11 @@ export type GuardRule = 'G01' | 'G02' | 'G03' | 'G04' | 'G05' | 'G06' | 'G07' | 
 export interface GuardOptions {
   /** 학생 원문(자리표시자로 가린 뒤). 여기 있던 말은 일부 규칙에서 통과. */
   readonly source: string;
-  /** 학생에게 건네는 말(칭찬·제안·이유·방향): 해요체 끝맺음과 기술 용어를 본다. 다듬은 글은 false. */
-  readonly speech: boolean;
+  /**
+   * 학생에게 건네는 말(칭찬·제안·이유·방향): 해요체 끝맺음과 기술 용어를 본다. 다듬은 글은 false.
+   * `'noHaeyo'`: 명사 목록(제목 후보 등)이라 해요체만 빼고 기술 용어는 본다.
+   */
+  readonly speech: boolean | 'noHaeyo';
 }
 
 /** 역할 깨짐·지시 유출(G-04). 학생 글에 같은 말이 있으면 통과(AI가 나오는 이야기 등). */
@@ -67,8 +70,10 @@ const QUOTED = /“[^”]*”|‘[^’]*’|"[^"]*"|'[^']*'|「[^」]*」|『[^�
  */
 export function endsPolitely(text: string): boolean {
   const t = text.replace(QUOTED, '○').trim();
+  // 문장부호 뒤 공백이 없어도(`고쳐라.다음…`), 문장부호 없이 줄을 바꿔도 문장을 나눈다(Codex 검토 4).
+  // 숫자 사이 점(3.5)·이어진 부호(?!)·닫는 따옴표 앞은 나누지 않는다.
   const sentences = t
-    .split(/(?<=[.!?])\s+/)
+    .split(/(?<=[.!?])(?![.!?~"'”’)\]\d])\s*|\n+/)
     .map(x => x.trim())
     .filter(x => x.length > 0);
   return sentences.length > 0 && sentences.every(x => HAEYO_END.test(x));
@@ -155,8 +160,10 @@ export function checkGenerated(text: string, opts: GuardOptions): GuardRule | nu
   }
   if (hasRepetition(t, src)) return 'G05';
   if (opts.speech) {
-    for (const term of TECH_TERMS) if (t.includes(term) && !src.includes(term)) return 'G06';
-    if (!endsPolitely(t)) return 'G07';
+    // 학생에게 건네는 말에서는 원문에 있어도 기술 용어를 쓰지 않는다. 따옴표로 인용한 원문만 뺀다(Codex 검토 6).
+    const spoken = t.replace(QUOTED, '○');
+    for (const term of TECH_TERMS) if (spoken.includes(term)) return 'G06';
+    if (opts.speech === true && !endsPolitely(t)) return 'G07';
   }
   return null;
 }

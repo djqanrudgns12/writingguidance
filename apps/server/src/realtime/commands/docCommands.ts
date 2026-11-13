@@ -11,9 +11,11 @@ import {
 import { AppError } from '@geulbang/core/errors';
 import { docDocumentName, snapshotCovers, type CommandName } from '@geulbang/core/protocol';
 import * as Y from 'yjs';
+import { assertConsentCurrent } from '../../application/consent.ts';
 import {
   command,
   docFor,
+  requireCurrentConsent,
   requireStudent,
   requireTeacher,
   roomFor,
@@ -24,6 +26,7 @@ import {
 
 /**
  * 글 명령(PLAN §4.4): 새 글, 제출(§2.3 ⑥), 다시 쓰게 하기, 동의 갱신.
+ * 학생의 새 글·제출은 동의 판이 지금 판일 때만 받는다(`requireCurrentConsent`, P6-consent-block).
  *
  * 제출 판단 순서:
  * ① 기기가 보낸 세대가 지금보다 낮으면 `E_STALE`(다시 열린 뒤 늦게 도착한 옛 제출 → 기기는 outbox에서 지움)
@@ -40,6 +43,8 @@ export function docCommands(deps: CommandDeps): Array<[CommandName, CommandSpec]
   const create: Handler<'doc.create'> = (actor, args, now) => {
     requireStudent(actor);
     const room = roomFor(deps, actor, now, { active: true });
+    // 동의 판이 지난 학생은 다시 동의하기 전에 새 글을 만들지 못한다(P6-consent-block).
+    requireCurrentConsent(deps, actor);
     const selection = {
       genre: args.genre,
       subtype: args.subtype,
@@ -75,6 +80,8 @@ export function docCommands(deps: CommandDeps): Array<[CommandName, CommandSpec]
   const submit: Handler<'doc.submit'> = (actor, args, now) => {
     requireStudent(actor);
     roomFor(deps, actor, now, { active: true });
+    // 동의 판이 지난 학생의 제출도 막는다. 기기 대기열은 이 거절을 지우지 않고 재동의 뒤 다시 보낸다(P6-consent-block).
+    requireCurrentConsent(deps, actor);
     const info = docFor(deps, actor, args.docId);
     if (args.generation < info.generation) throw new AppError('E_STALE');
     if (args.generation > info.generation) {
@@ -139,9 +146,7 @@ export function docCommands(deps: CommandDeps): Array<[CommandName, CommandSpec]
 
   const consent: Handler<'consent.update'> = (actor, args, now) => {
     requireStudent(actor);
-    if (args.consentVersion !== p.POLICY_VERSION) {
-      throw new AppError('E_INPUT', 'consent version is not current', { consentVersion: 'outdated' });
-    }
+    assertConsentCurrent(args.consentVersion, p.POLICY_VERSION);
     repos.participants.updateConsent(actor.participantId, args.consentVersion, now);
     // 동의 판이 지나 읽기로 열렸던 자기 글 연결을 쓰기로 바꾼다(`doc.status {locked:false}` → 기기가 다시 보냄).
     return {

@@ -1,6 +1,7 @@
 import { AppError } from '@geulbang/core/errors';
 import type { CommandArgs, CommandName } from '@geulbang/core/protocol';
 import type { Hocuspocus } from '@hocuspocus/server';
+import { assertConsentCurrent } from '../../application/consent.ts';
 import type { ServerConfig } from '../../config.ts';
 import type { Logger } from '../../log.ts';
 import type { DocumentInfo } from '../../store/repos/documents.ts';
@@ -86,6 +87,18 @@ export function docFor(deps: CommandDeps, actor: RoomActor, docId: string): Docu
 
 export function requireStudent(actor: RoomActor): asserts actor is Extract<RoomActor, { kind: 'student' }> {
   if (actor.kind !== 'student') throw new AppError('E_FORBIDDEN');
+}
+
+/**
+ * 학생의 동의 판이 지금 판인가(PRD F-03, P6-consent-block). 다르면 `E_INPUT {consentVersion:'outdated'}`.
+ * 새 글·제출처럼 글을 서버에 남기는 명령 앞에 둔다. 재동의(`consent.update`)는 이 검사를 거치지 않는다.
+ */
+export function requireCurrentConsent(
+  deps: Pick<CommandDeps, 'repos' | 'config'>,
+  actor: Extract<RoomActor, { kind: 'student' }>,
+): void {
+  const participant = deps.repos.participants.findById(actor.participantId);
+  assertConsentCurrent(participant?.consentVersion, deps.config.product.POLICY_VERSION);
 }
 
 export function requireTeacher(actor: RoomActor): asserts actor is Extract<RoomActor, { kind: 'teacher' }> {

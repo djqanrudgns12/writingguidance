@@ -44,6 +44,8 @@ export function GenrePage() {
   const entry = flow.entry.status === 'ready' ? flow.entry.entry : null;
   const { student, hello, channelState, failure, connection } = useStudentSession(entry, flow.session);
   const consent = useConsentGate(deps, student, hello);
+  const { refusedBy } = consent;
+  const autoStarted = useRef(false);
 
   const [genre, setGenre] = useState<GenreId | null>(null);
   const [subtype, setSubtype] = useState<SubtypeId | null>(null);
@@ -94,17 +96,22 @@ export function GenrePage() {
         });
         navigate(`../write/${docId}`, { replace: true });
       } catch (e) {
-        setError(errorCodeOf(e));
+        const code = errorCodeOf(e);
+        // 동의 판이 지나 서버가 새 글을 거절했으면 다시 동의 화면으로(동의 뒤 하나뿐인 종류는 다시 바로 만든다).
+        if (refusedBy(code)) {
+          autoStarted.current = false;
+          // 재동의 카드가 이전 체크를 이어받지 않게 다시 체크하도록 비운다.
+          flow.setAgreed(false);
+        } else setError(code);
       } finally {
         setStarting(false);
       }
     },
-    [deps, entry, navigate, starting, student],
+    [deps, entry, flow, navigate, starting, student, refusedBy],
   );
 
   // 켠 종류가 하나(기타 문구 아님)면 고를 것이 없다: 바로 만든다(PRD F-05).
   const only = enabled.length === 1 ? enabled[0] : undefined;
-  const autoStarted = useRef(false);
   useEffect(() => {
     if (!only || only === 'other' || autoStarted.current || !student || consent.needed) return;
     autoStarted.current = true;

@@ -181,7 +181,7 @@ export function clampResumeLongPollMs(
 }
 
 /**
- * 학생 기다림 화면(S6)에서 추가 안내("선생님이 아직 못 보셨어요. 조금 더 기다려요")가 켜지는 시각(UTC ms)을 계산한다(PRD F-14).
+ * 학생 기다림 화면(S6)에서 추가 안내("선생님이 아직 못 보셨어요. 조금 더 기다려요.")가 켜지는 시각(UTC ms)을 계산한다(PRD F-14).
  */
 export function computeResumeWaitHintAt(
   createdAtMs: number,

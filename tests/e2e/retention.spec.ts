@@ -17,7 +17,7 @@ import {
 /**
  * 보관(PRD 16.6-1, F-24, PLAN §10.5 `retention.spec.ts`): 만료 시각이 지나면 수업방 데이터·PIN·입장 코드가 모두 사라진다.
  * 시험 서버는 `ROOM_TTL_MINUTES_OVERRIDE=2`(보관 기간을 설정값 하나로 줄임, 16.6-2)라 2분 뒤 만료되고,
- * 정리 작업은 60초마다 돈다(apps/server/src/jobs/retention.ts). 폭과 무관해 1280 프로젝트에서만 돈다.
+ * 정리 작업은 60초마다 돈다(apps/server/src/jobs/retention.ts). 엔진마다 대표 폭에서 한 번 돈다.
  */
 
 /** 정리 작업 주기(서버 내부 값 60초)와 여유 */

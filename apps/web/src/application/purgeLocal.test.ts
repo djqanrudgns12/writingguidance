@@ -169,7 +169,12 @@ describe('이어 쓰기 대기와 교사 기기 정리(검토 B04)', () => {
             return () => listeners.delete(name);
           }) as unknown as RoomChannel['on'],
           send: () => Promise.reject(new Error('unused')),
-          queue: { enqueue: async () => '', pending: async () => [], onResult: () => () => {} },
+          queue: {
+            enqueue: async () => '',
+            pending: async () => [],
+            flush: async () => {},
+            onResult: () => () => {},
+          },
           close: () => {},
         }),
         close: () => {},

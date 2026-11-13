@@ -7,7 +7,7 @@ import { LIMITS, type DirectionResult, type FeedbackResult, type SpellResult } f
 export const PLACEHOLDER = /\[(?:전화번호|이메일|주민번호|주소)\d+\]|⟦가림\d+⟧/;
 
 /** 응답 단위 규칙(G) 위반: 그 응답을 버리고 다시 묻는다(docs/ai-harness.md L4). */
-function guard(text: string, source: string, speech: boolean): void {
+function guard(text: string, source: string, speech: boolean | 'noHaeyo'): void {
   const rule = checkGenerated(text, { source, speech });
   if (rule) throw new AiCallError('unsafe', rule);
 }
@@ -158,6 +158,8 @@ export function cleanFeedback(result: FeedbackResult, source = ''): FeedbackResu
 
 /** 방향 이름표(D-03): 정해 둔 이름이거나 12자 이내 한글·띄어쓰기만. */
 const LABEL_OK = /^[가-힣 ]{1,12}$/;
+/** 명사 목록을 담는 후보 이름표("제목 후보"·"후렴 후보"). */
+const CANDIDATE_LABEL = /^[가-힣 ]{1,10}후보$/;
 
 export function cleanDirection(result: DirectionResult, source = ''): DirectionResult {
   const ideas = result.ideas
@@ -168,12 +170,14 @@ export function cleanDirection(result: DirectionResult, source = ''): DirectionR
   if (ideas.length < LIMITS.ideasMin) throw new AiCallError('format', 'ideas');
   return {
     ideas: ideas.map(i => {
-      // "제목 후보"·"후렴 후보"처럼 이름표가 후보인 항목은 명사 목록이라 해요체 검사를 하지 않는다(레드팀 평가에서 발견).
-      guard(i.text, source, !(i.label ?? '').endsWith('후보'));
+      // 이름표를 먼저 검증한다: 검증 전 이름표로 말투 검사를 끄지 못하게(Codex 검토 5).
       const label =
         i.label && LABEL_OK.test(i.label) && !checkGenerated(i.label, { source, speech: false })
           ? i.label
           : undefined;
+      // "제목 후보"·"후렴 후보"처럼 허용된 후보 이름표의 항목은 명사 목록이라 해요체만 빼고, 기술 용어는 그대로 본다.
+      const candidate = label !== undefined && CANDIDATE_LABEL.test(label);
+      guard(i.text, source, candidate ? 'noHaeyo' : true);
       return { text: i.text, ...(label ? { label } : {}) };
     }),
   };

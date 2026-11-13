@@ -83,6 +83,7 @@ export function createFakeChannel(roomId: string): FakeChannel {
     queue: {
       enqueue: async () => 'queued',
       pending: async () => [],
+      flush: async () => undefined,
       onResult: () => () => undefined,
     },
     close() {

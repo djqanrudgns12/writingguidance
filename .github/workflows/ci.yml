@@ -51,10 +51,10 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - name: 시험용 웹 빌드
         run: npm run build:devices
-      - name: 화면 시험(Chromium)
+      - name: 화면 시험(Chromium·WebKit)
         run: npm run e2e -- --workers=1
       - name: 실패 기록 올리기
         if: failure()

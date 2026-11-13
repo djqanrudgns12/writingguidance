@@ -104,9 +104,12 @@ test.describe('글벗 결과 패널 (PRD 16.1 · 16.6)', () => {
     }
   });
 
-  test('다듬은 글은 복사할 수 있고 적용 버튼은 없다', async ({ browser, request }) => {
+  test('다듬은 글은 복사할 수 있고 적용 버튼은 없다', async ({ browser, browserName, request }) => {
     const room = await createRoomRest(request);
-    const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
+    // WebKit은 clipboard-write 권한 설정이 없고, 실제 복사 버튼의 사용자 동작으로 쓰기를 허용한다.
+    const context = await browser.newContext({
+      permissions: browserName === 'webkit' ? ['clipboard-read'] : ['clipboard-read', 'clipboard-write'],
+    });
     const page = await context.newPage();
     try {
       await joinAsStudent(page, room, nick('다듬'));

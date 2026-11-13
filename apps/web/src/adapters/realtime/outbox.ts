@@ -7,6 +7,8 @@ import type { CommandError, RoomChannel } from '../../ports/realtime.ts';
  * 연결되고 **그 글의 동기화가 끝난 뒤** 만든 순서대로 보낸다. 같은 `commandId`로 다시 보내므로 서버가 한 번만 실행한다.
  * - `ack` 성공·`E_STALE`(이미 다시 열린 뒤 도착한 옛 제출)·그 밖의 되돌릴 수 없는 거절 → 지우고 결과를 알린다.
  * - `E_SYNC_PENDING`·응답 없음 → 남겨 두고 잠시 뒤 다시.
+ * - `holdOn`이 붙잡으라는 거절(동의 판이 지난 학생의 제출, P6-consent-block) → 지우지도 다시 보내지도 않고 멈춘다.
+ *   재동의 뒤 `flush`나 다시 연결(`ready`)·새 제출이 다시 보낸다. 같은 commandId라 서버는 한 번만 처리한다.
  * - 그 글 동기화 기다리기가 거부됨:
  *   - 닫힘처럼 다시 될 수 있으면(`retryable`) 남겨 둔 채 이번 실행을 끝내고 잠시 뒤 다시(그때 새 제공자로, 검토 7번).
  *   - 영구 거절(`retryable:false`, 예: `E_DOC_TOO_LARGE`)이면 그 명령은 다시 해도 안 된다. 지우고 실패로 알려
@@ -28,6 +30,8 @@ export interface OutboxDeps {
    */
   readonly waitDocSynced: (docId: string) => Promise<void>;
   readonly onResult?: (result: OutboxResult) => void;
+  /** 이 거절이면 지우지 않고 붙잡아 둔다(뒤의 것도 순서대로 기다린다). 없으면 붙잡지 않는다. */
+  readonly holdOn?: (error: CommandError) => boolean;
   readonly retryDelayMs?: number;
   readonly now?: () => number;
   readonly newId?: () => string;
@@ -68,8 +72,11 @@ export function createOutbox(deps: OutboxDeps): Outbox {
     }, retryDelay);
   };
 
-  /** 다 보냈거나 연결이 없으면 `done`, 잠시 뒤 다시 보내야 하면 `retry`(바로 다시 돌지 않게). */
-  const runOnce = async (): Promise<'done' | 'retry'> => {
+  /**
+   * 다 보냈거나 연결이 없으면 `done`, 잠시 뒤 다시 보내야 하면 `retry`, 붙잡았으면 `held`.
+   * `done`이 아니면 그사이 들어온 flush 요청으로 바로 다시 돌지 않는다(같은 거절을 곧바로 되풀이하지 않게).
+   */
+  const runOnce = async (): Promise<'done' | 'retry' | 'held'> => {
     const entries = await deps.store.list(roomId);
     for (const entry of entries) {
       if (closed || deps.channel.state.get() !== 'ready') return 'done';
@@ -99,6 +106,8 @@ export function createOutbox(deps: OutboxDeps): Outbox {
           scheduleRetry();
           return 'retry'; // 순서를 지키려고 뒤의 것도 기다린다.
         }
+        // 다시 보낼 때를 기다린다: 같은 거절을 계속 되풀이하지 않게 시간표도 걸지 않는다.
+        if (deps.holdOn?.(e)) return 'held';
         await deps.store.remove(entry.commandId);
         deps.onResult?.({ entry, ok: false, error: e });
       }
@@ -113,7 +122,7 @@ export function createOutbox(deps: OutboxDeps): Outbox {
       return running;
     }
     running = (async () => {
-      let result: 'done' | 'retry';
+      let result: 'done' | 'retry' | 'held';
       do {
         again = false;
         result = await runOnce();

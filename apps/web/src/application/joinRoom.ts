@@ -1,7 +1,7 @@
 import type { ApiOutput } from '@geulbang/core/api';
 import type { Hello } from '@geulbang/core/protocol';
 import type { StudentRoomMemory } from '../ports/deviceMemory.ts';
-import type { RoomChannel } from '../ports/realtime.ts';
+import type { CommandQueue, RoomChannel } from '../ports/realtime.ts';
 import type { AppDeps } from './deps.ts';
 
 /**
@@ -76,12 +76,27 @@ const agreedOn = new WeakMap<object, string>();
  * `commandId`는 부르는 쪽이 다시 하기 사이에 같은 값을 넘겨 서버가 한 번만 처리하게 한다.
  */
 export async function updateConsent(
-  channel: Pick<RoomChannel, 'send'>,
+  channel: Pick<RoomChannel, 'send'> & { readonly queue?: Pick<CommandQueue, 'flush'> },
   consentVersion: string,
   commandId: string,
 ): Promise<void> {
   await channel.send('consent.update', { consentVersion }, { commandId });
   agreedOn.set(channel, consentVersion);
+  // 동의 전에 서버가 거절해 대기열이 붙잡아 둔 제출을 이제 보낸다(P6-consent-block). 실패는 대기열이 다시 한다.
+  void channel.queue?.flush().catch(() => {});
+}
+
+/**
+ * 서버가 새 글·제출을 동의 판 때문에 거절했는가(P6-consent-block). 수업방 채널의 거절에는 `fields`가 없어
+ * `E_INPUT` + hello의 동의 판이 지난 것으로 본다. 맞으면 이 연결의 "다시 동의함" 기억을 지워
+ * `consentNeeded`가 다시 동의 화면을 보이게 한다(서버가 아직 옛 판으로 알고 있으므로).
+ */
+export function consentRefused(channel: object, hello: Hello | null, code: string): boolean {
+  if (code !== 'E_INPUT' || !hello?.me) return false;
+  const policy = policyVersionOf(hello);
+  if (!policy || hello.me.consentVersion === policy) return false;
+  agreedOn.delete(channel);
+  return true;
 }
 
 /** hello가 알려 준 지금 처리방침 판. 없으면 null(옛 서버: 묻지 않는다). */

@@ -1,4 +1,4 @@
-import { chromium, expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { configDefaults } from '../../packages/core/src/config.ts';
 import { E2E_BASE_URL } from './constants.ts';
 import {
@@ -134,13 +134,13 @@ test.describe('오프라인과 저장 (PRD 16.2)', () => {
     browser,
     request,
   }, info) => {
-    test.skip(info.project.name !== 'chromium-1280', '브라우저 재시작은 폭과 무관해 1280에서만 돈다');
+    test.skip(info.project.name === 'chromium-360', '브라우저 재시작은 엔진마다 대표 폭에서 한 번 돈다');
     test.setTimeout(OFFLINE_DETECT_MS + RECONNECT_MS + 60 * SEC);
     const room = await createRoomRest(request);
     const nickname = nick('재시');
     const profile = info.outputPath('profile');
     const launch = () =>
-      chromium.launchPersistentContext(profile, {
+      browser.browserType().launchPersistentContext(profile, {
         baseURL: E2E_BASE_URL,
         viewport: info.project.use.viewport ?? null,
       });
@@ -180,7 +180,7 @@ test.describe('오프라인과 저장 (PRD 16.2)', () => {
     browser,
     request,
   }, info) => {
-    test.skip(info.project.name !== 'chromium-1280', '서비스 워커 동작은 폭과 무관해 1280에서만 돈다');
+    test.skip(info.project.name === 'chromium-360', '서비스 워커 동작은 엔진마다 대표 폭에서 한 번 돈다');
     test.setTimeout(OFFLINE_DETECT_MS + 60 * SEC);
     const room = await createRoomRest(request);
     const student = await newDevice(browser);

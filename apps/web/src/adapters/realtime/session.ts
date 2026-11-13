@@ -1,5 +1,5 @@
 import type { Config } from '@geulbang/core/config';
-import type { Credential } from '@geulbang/core/protocol';
+import type { Credential, Hello } from '@geulbang/core/protocol';
 import type { LocalStorePort } from '../../ports/localStore.ts';
 import { value } from '../../ports/observable.ts';
 import type {
@@ -14,6 +14,17 @@ import { openDocProvider } from './docProvider.ts';
 import { openRoomChannel } from './roomChannel.ts';
 import { createServerClock, type ServerClock } from './serverClock.ts';
 import { createSocket } from './socket.ts';
+
+/**
+ * hello로 본 학생의 동의 판이 지금 판과 다른가(PRD F-03). 대기열이 제출 거절을 붙잡을지 정할 때만 쓴다.
+ * 화면의 재동의 판단(`consentNeeded`)은 이 연결에서 다시 동의한 것까지 보지만, 여기서는 hello만 본다:
+ * 재동의 뒤에는 서버가 받아 주므로 이 값이 남아 있어도 붙잡을 일이 없다.
+ */
+function consentOutdatedIn(hello: Hello | null): boolean {
+  const policy = hello?.config['POLICY_VERSION'];
+  const me = hello?.me;
+  return typeof policy === 'string' && !!me && me.consentVersion !== policy;
+}
 
 export interface RealtimeAdapterDeps {
   readonly url: string;
@@ -117,6 +128,7 @@ export function createRealtimeAdapter(deps: RealtimeAdapterDeps): RealtimePort {
             queue: {
               enqueue: entry => outbox.enqueue(entry),
               pending: () => outbox.pending(),
+              flush: () => outbox.flush(),
               onResult: listener => {
                 const wrap = (r: OutboxResult) =>
                   listener({
@@ -138,6 +150,8 @@ export function createRealtimeAdapter(deps: RealtimeAdapterDeps): RealtimePort {
             store: deps.localStore.outbox,
             channel,
             waitDocSynced,
+            // 동의 판이 지난 학생의 제출 거절(`E_INPUT`)은 지우지 않고 붙잡는다. 재동의 뒤 `flush`로 다시 보낸다.
+            holdOn: e => e.code === 'E_INPUT' && consentOutdatedIn(channel.hello.get()),
             onResult: r => {
               for (const l of listeners) l(r);
             },

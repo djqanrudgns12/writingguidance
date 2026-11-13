@@ -357,7 +357,7 @@ test.describe('교사 (PRD 16.4)', () => {
     browser,
     request,
   }, info) => {
-    test.skip(info.project.name !== 'chromium-1280', '타이머는 폭과 무관하고 1분을 기다려 1280에서만 돈다');
+    test.skip(info.project.name === 'chromium-360', '타이머는 엔진마다 대표 폭에서 한 번 돈다');
     test.setTimeout(150_000);
     const room = await createRoomRest(request);
     const student = await newDevice(browser);
@@ -395,7 +395,7 @@ test.describe('교사 (PRD 16.4)', () => {
   });
 
   test('타이머가 끝나면 끝났을 때 문구가 자동으로 간다', async ({ browser, request }, info) => {
-    test.skip(info.project.name !== 'chromium-1280', '타이머는 폭과 무관하고 1분을 기다려 1280에서만 돈다');
+    test.skip(info.project.name === 'chromium-360', '타이머는 엔진마다 대표 폭에서 한 번 돈다');
     test.setTimeout(120_000);
     const room = await createRoomRest(request);
     const student = await newDevice(browser);

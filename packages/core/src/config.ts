@@ -134,7 +134,7 @@ export const configDefaults = {
   FONT_SIZES: [16, 18, 21, 24],
 
   // 정책·주소·시간대
-  POLICY_VERSION: '2026-11-v1',
+  POLICY_VERSION: '2026-11-v2',
   PUBLIC_ORIGIN: 'https://write.ssamuniverse.com',
   TIMEZONE: 'Asia/Seoul',
 } as const;
